@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -25,17 +25,6 @@ class Group(GroupBase):
     model_config = {"extra": "ignore"}
 
     @field_validator("group_id", "user_id")
-    @classmethod
-    def validate_uuid(cls, value: str) -> str:
-        UUID(value)
-        return value
-
-
-class GroupNotesItem(BaseModel):
-    group_id: str
-    note_ids: List[str] = Field(default_factory=list)
-
-    @field_validator("group_id")
     @classmethod
     def validate_uuid(cls, value: str) -> str:
         UUID(value)

@@ -59,6 +59,10 @@ class Settings(BaseSettings):
         default=None,
         description="API key for protected endpoints",
     )
+    groq_api_key: Optional[str] = Field(
+        default=None,
+        validation_alias="GROQ_API_KEY"
+    )
 
 
 settings = Settings()

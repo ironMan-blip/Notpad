@@ -1,18 +1,14 @@
 from uuid import UUID, uuid4
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 import app.utils.data_loader as dl
 from app.utils.database import DBUser, DBGroup, DBNote
 from app.utils.dependencies import require_user_id, verify_api_key
 from app.schemas.group import GroupCreate, GroupUpdate
+from app.utils.limiter import limiter
 
 router = APIRouter(prefix="/groups", tags=["group"], redirect_slashes=False, dependencies=[Depends(verify_api_key)])
-
-limiter = Limiter(key_func=get_remote_address)
 
 
 def _validate_uuid(value: str, field: str = "id") -> None:

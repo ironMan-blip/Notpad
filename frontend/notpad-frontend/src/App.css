@@ -833,6 +833,74 @@ textarea {
 	100% { opacity: 1; }
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+.ai-dropdown button:hover {
+  background-color: var(--surface) !important;
+}
+
+.ai-dropdown button:disabled {
+  opacity: 0.6;
+}
+
+.ai-result-modal {
+  animation: fadeIn 150ms ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* NoteModal AI Toolbar */
+.ai-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  color: var(--subtle);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+  border: none;
+  background: none;
+}
+
+.ai-toolbar-btn:hover {
+  background-color: var(--surface);
+  color: var(--text);
+}
+
+.ai-toolbar-btn.active {
+  background-color: var(--primary-soft);
+  color: var(--primary);
+}
+
+.note-body-editor img.editor-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  cursor: pointer;
+  margin: 8px 0;
+  transition: outline 100ms ease;
+}
+
+.note-body-editor img.editor-image:hover {
+  outline: 2px solid var(--primary);
+}
+
+.note-body-editor img.editor-image.selected-image {
+  outline: 2px solid var(--primary);
+}
+
 /* Empty State Styles */
 .empty-state {
 	display: flex;

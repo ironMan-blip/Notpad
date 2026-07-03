@@ -1,26 +1,22 @@
+import asyncio
 import filetype
 import hashlib
 import re
-import shutil
 import uuid
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
+from app.services.ai_service import ai_service
 import app.utils.data_loader as dl
 from app.utils.database import DBUser, DBNote, DBPicture, DBVoice
 from app.utils.dependencies import require_user_id, verify_api_key
-from app.schemas.media import Picture, Voice
 from app.schemas.note import Note, NoteCreate, NoteUpdate, MediaReference
-from app.schemas.user import User
+from app.utils.limiter import limiter
 
 router = APIRouter(prefix="/notes", tags=["notes"], redirect_slashes=False, dependencies=[Depends(verify_api_key)])
-
-limiter = Limiter(key_func=get_remote_address)
 UPLOADS_DIR = Path(__file__).resolve().parent.parent / "uploads"
 IMAGE_UPLOAD_DIR = UPLOADS_DIR / "images"
 VOICE_UPLOAD_DIR = UPLOADS_DIR / "voices"
@@ -391,6 +387,15 @@ def upload_note_voice(request: Request, note_id: str, file: UploadFile = File(..
         index=next_index
     )
 
+    # Transcribe audio file using AI service on the backend (Speech-to-Text on Backend only!)
+    transcript = None
+    if ai_service.is_available():
+        try:
+            file_path = VOICE_UPLOAD_DIR / filename
+            transcript = asyncio.run(ai_service.transcribe_audio(str(file_path)))
+        except Exception as e:
+            print(f"Error during audio transcription: {e}")
+
     placeholder = _make_media_placeholder("audio", next_index)
     new_body = f"{note.note_body} {placeholder}" if note.note_body else placeholder
     dl.update_record(DBNote, filter_kwargs={"note_id": note_id, "user_id": user_id}, update_kwargs={"note_body": new_body})
@@ -401,6 +406,7 @@ def upload_note_voice(request: Request, note_id: str, file: UploadFile = File(..
         "voice": voice,
         "placeholder": placeholder,
         "note": updated_note,
+        "transcript": transcript,
     }
 
 

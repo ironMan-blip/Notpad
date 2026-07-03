@@ -10,7 +10,7 @@ import GroupManager from './components/GroupManager'
 import GroupCreator from './components/GroupCreator'
 import Pagination from './components/Pagination'
 import NoteCreator from './components/NoteCreator'
-import { useAuth } from './context/useAuth'
+import { useAuth } from './context/AuthContext'
 import { apiClient } from './services/api'
 
 export default function App() {
@@ -86,9 +86,10 @@ export default function App() {
 		fetchData()
 	}, [user, currentPage, search, reloadNotesKey, collapsed, ITEMS_PER_PAGE])
 
-	useEffect(() => {
+	const handleSearchChange = (query) => {
+		setSearch(query)
 		setCurrentPage(1)
-	}, [search])
+	}
 
 	const selectedGroup = selected?.type === 'group' ? groups.find(g => g.group_id === selected.id) : null
 	const filteredNotes = selectedGroup
@@ -102,7 +103,7 @@ export default function App() {
 	const showPagination = pagination && !search && !selectedGroup && pagination.total_pages > 1 && !modalVisible
 	const paginationInline = showPagination && notes.length === ITEMS_PER_PAGE
 
-	function handleSave(savedNote) {
+	function handleSave() {
 		setReloadNotesKey(key => key + 1)
 		setIsOpen(false)
 		setEditing(null)
@@ -181,7 +182,7 @@ export default function App() {
 		<div className="app">
 			<Navbar
 				search={search}
-				setSearch={setSearch}
+				setSearch={handleSearchChange}
 				setIsOpen={setIsOpen}
 				setEditing={setEditing}
 				collapsed={collapsed}
