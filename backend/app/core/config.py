@@ -55,7 +55,13 @@ class Settings(BaseSettings):
         description="Database connection URL",
     )
     
+    api_base_url: Optional[str] = Field(
+        default=None,
+        description="Public base URL for the API (used for absolute URLs in responses)",
+    )
+    
     api_key: Optional[str] = Field(
+
         default=None,
         description="API key for protected endpoints",
     )

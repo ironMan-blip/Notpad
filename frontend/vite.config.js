@@ -1,34 +1,36 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+const BACKEND_URL = process.env.VITE_BACKEND_URL || 'http://localhost:8000';
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: BACKEND_URL,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
       '/ai': {
-        target: 'http://localhost:8000',
+        target: BACKEND_URL,
         changeOrigin: true,
       },
       '/auth': {
-        target: 'http://localhost:8000',
+        target: BACKEND_URL,
         changeOrigin: true,
       },
       '/notes': {
-        target: 'http://localhost:8000',
+        target: BACKEND_URL,
         changeOrigin: true,
       },
       '/groups': {
-        target: 'http://localhost:8000',
+        target: BACKEND_URL,
         changeOrigin: true,
       },
       '/uploads': {
-        target: 'http://localhost:8000',
+        target: BACKEND_URL,
         changeOrigin: true,
       },
     },

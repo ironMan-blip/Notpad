@@ -78,7 +78,8 @@ def _validate_upload_file(file: UploadFile, allowed_mimes: set[str], max_size: i
 
 
 def _make_upload_url(request: Request, subpath: str) -> str:
-    return str(request.base_url).rstrip("/") + f"/uploads/{subpath}"
+    base = settings.api_base_url or str(request.base_url).rstrip("/")
+    return f"{base.rstrip('/')}/uploads/{subpath}"
 
 
 def _save_upload_file(
