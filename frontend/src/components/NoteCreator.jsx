@@ -1,41 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { apiClient } from '../services/api'
 
-function escapeHtml(text = '') {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-}
 
-function parsePlaceholderMeta(placeholder) {
-  const match = placeholder.match(/\[(IMG|AUD):(\d+)(\|[^\]]+)?\]/)
-  if (!match) return null
-  const type = match[1]
-  const index = Number(match[2])
-  const meta = {}
-  if (match[3]) {
-    match[3].slice(1).split('|').forEach(pair => {
-      const [key, value] = pair.split('=')
-      if (key && value) meta[key] = value
-    })
-  }
-  return { type, index, meta }
-}
-
-function serializePlaceholder(type, index, meta = {}) {
-  const parts = []
-  if (meta.width) parts.push(`w=${meta.width}`)
-  return parts.length > 0 ? `[${type}:${index}|${parts.join('|')}]` : `[${type}:${index}]`
-}
-
-function formatTime(seconds) {
-  const mins = Math.floor(seconds / 60)
-  const secs = seconds % 60
-  return `${mins}:${secs.toString().padStart(2, '0')}`
-}
 
 function htmlToBody(html = '') {
   const parser = new DOMParser()
@@ -66,7 +32,9 @@ export default function NoteCreator({ onSave }) {
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
-  const [recordingTime, setRecordingTime] = useState(0)
+  const [recordingError, setRecordingError] = useState('')
+  const [recordingMode, setRecordingMode] = useState(null)
+  const recordingModeRef = useRef(null)
 
   const containerRef = useRef(null)
   const editorRef = useRef(null)
@@ -81,6 +49,11 @@ export default function NoteCreator({ onSave }) {
     setExpanded(true)
   }
 
+  const submitNoteRef = useRef(submitNote)
+  useEffect(() => {
+    submitNoteRef.current = submitNote
+  })
+
   // Handle click outside to save and collapse
   useEffect(() => {
     function handleClickOutside(event) {
@@ -90,14 +63,14 @@ export default function NoteCreator({ onSave }) {
         expanded
       ) {
         // Automatically save if there is content
-        submitNote()
+        submitNoteRef.current()
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [expanded, title])
+  }, [expanded])
 
   // Track cursor position for injecting media
   useEffect(() => {
@@ -181,63 +154,7 @@ export default function NoteCreator({ onSave }) {
     }
   }
 
-  // Voice recording handlers
-  function startRecordingTimer() {
-    setRecordingTime(0)
-    recordingTimerRef.current = setInterval(() => {
-      setRecordingTime(prev => prev + 1)
-    }, 1000)
-  }
 
-  function stopRecordingTimer() {
-    if (recordingTimerRef.current) {
-      clearInterval(recordingTimerRef.current)
-      recordingTimerRef.current = null
-    }
-  }
-
-  async function startVoiceRecording() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      audioChunksRef.current = []
-      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: 'audio/webm' })
-
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data)
-        }
-      }
-
-      mediaRecorderRef.current.onstop = async () => {
-        stream.getTracks().forEach(track => track.stop())
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
-        await queueVoiceRecording(audioBlob)
-      }
-
-      mediaRecorderRef.current.start()
-      setIsRecording(true)
-      startRecordingTimer()
-    } catch (err) {
-      setError('Failed to start recording: ' + err.message)
-    }
-  }
-
-  function stopVoiceRecording() {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop()
-    }
-    setIsRecording(false)
-    stopRecordingTimer()
-  }
-
-  async function queueVoiceRecording(audioBlob) {
-    if (!editorRef.current) return
-    const pendingId = `pending-voice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    pendingFilesRef.current[pendingId] = audioBlob
-    const blobUrl = URL.createObjectURL(audioBlob)
-    const audioHtml = `<audio class="note-body-audio editor-audio pending-audio" controls data-pending-id="${pendingId}" src="${blobUrl}" style="width:100%; max-width:400px; margin:8px 0;"></audio>`
-    insertHtmlAtCursor(editorRef.current, audioHtml)
-  }
 
   // Create note on close
   async function submitNote() {
@@ -337,6 +254,107 @@ export default function NoteCreator({ onSave }) {
     }
   }
 
+  // Recording functions
+  const stopRecording = useCallback(async () => {
+    if (!mediaRecorderRef.current || !isRecording) return
+
+    setIsRecording(false)
+    setRecordingError('')
+
+    return new Promise((resolve) => {
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.onstop = async () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+          audioChunksRef.current = []
+          
+          const mode = recordingModeRef.current
+          recordingModeRef.current = null
+          setRecordingMode(null)
+
+          if (audioBlob.size > 0 && editorRef.current) {
+            if (mode === 'stt') {
+              try {
+                setUploading(true)
+                const res = await apiClient.transcribeAudio(audioBlob)
+                if (res.text) {
+                  insertHtmlAtCursor(editorRef.current, ` ${res.text} `)
+                }
+              } catch (err) {
+                setRecordingError('Failed to transcribe audio: ' + err.message)
+              } finally {
+                setUploading(false)
+              }
+            } else {
+              const pendingId = `pending-voice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+              pendingFilesRef.current[pendingId] = audioBlob
+              const blobUrl = URL.createObjectURL(audioBlob)
+              const audioHtml = `<audio class="note-body-audio editor-audio pending-audio" controls data-pending-id="${pendingId}" src="${blobUrl}" style="width:100%; max-width:400px; margin:8px 0;"></audio>`
+              insertHtmlAtCursor(editorRef.current, audioHtml)
+            }
+          }
+          resolve()
+        }
+        mediaRecorderRef.current.stop()
+        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop())
+        mediaRecorderRef.current = null
+      }
+      
+      if (recordingTimerRef.current) {
+        clearTimeout(recordingTimerRef.current)
+        recordingTimerRef.current = null
+      }
+    })
+  }, [isRecording])
+
+  const startRecording = useCallback(async (mode = 'voice') => {
+    if (isRecording) return
+
+    try {
+      setRecordingError('')
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+      
+      audioChunksRef.current = []
+      mediaRecorderRef.current = mediaRecorder
+      recordingModeRef.current = mode
+      setRecordingMode(mode)
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      }
+
+      mediaRecorder.start(100)
+      setIsRecording(true)
+
+      // Auto-stop after 60 seconds
+      recordingTimerRef.current = setTimeout(() => {
+        stopRecording()
+      }, 60000)
+    } catch (err) {
+      setRecordingError('Failed to start recording: ' + err.message)
+      recordingModeRef.current = null
+      setRecordingMode(null)
+    }
+  }, [isRecording, stopRecording])
+
+  const toggleRecording = useCallback((mode) => {
+    if (isRecording) {
+      stopRecording()
+    } else {
+      startRecording(mode)
+    }
+  }, [isRecording, startRecording, stopRecording])
+
+  useEffect(() => {
+    return () => {
+      if (isRecording) {
+        stopRecording()
+      }
+    }
+  }, [isRecording, stopRecording])
+
   return (
     <div className="note-creator" ref={containerRef}>
       {!expanded ? (
@@ -350,7 +368,7 @@ export default function NoteCreator({ onSave }) {
                 <polyline points="21 15 16 10 5 21"></polyline>
               </svg>
             </label>
-            <button className="card-icon-btn" type="button" title="Record Voice" onClick={(e) => { e.stopPropagation(); expand(); startVoiceRecording(); }}>
+            <button className="card-icon-btn" type="button" title="Record Voice" onClick={(e) => { e.stopPropagation(); expand(); }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
                 <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
@@ -397,15 +415,19 @@ export default function NoteCreator({ onSave }) {
                 />
               </label>
 
+              {recordingError && <div className="modal-error" style={{ fontSize: '12px', marginBottom: '8px' }}>{recordingError}</div>}
+
+              {/* Speech to Text Button */}
               <button
                 type="button"
-                className={`card-icon-btn ${isRecording ? 'recording' : ''}`}
-                onClick={isRecording ? stopVoiceRecording : startVoiceRecording}
-                disabled={uploading}
-                title={isRecording ? "Stop Recording" : "Record Voice"}
+                className={`card-icon-btn ${isRecording && recordingMode === 'stt' ? 'recording' : ''}`}
+                onClick={() => toggleRecording('stt')}
+                disabled={uploading || (isRecording && recordingMode !== 'stt')}
+                title={isRecording && recordingMode === 'stt' ? "Stop Recording (Speech to Text)" : "Speech to Text"}
+                style={{ color: isRecording && recordingMode === 'stt' ? '#ef4444' : 'inherit' }}
               >
-                {isRecording ? (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#fff' }}>
+                {isRecording && recordingMode === 'stt' ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
                   </svg>
                 ) : (
@@ -417,7 +439,26 @@ export default function NoteCreator({ onSave }) {
                   </svg>
                 )}
               </button>
-              {isRecording && <span style={{ fontSize: '12px', color: 'var(--danger)', fontWeight: 'bold' }}>{formatTime(recordingTime)}</span>}
+
+              {/* SVG Voice Recording Button */}
+              <button
+                type="button"
+                className={`card-icon-btn ${isRecording && recordingMode === 'voice' ? 'recording' : ''}`}
+                onClick={() => toggleRecording('voice')}
+                disabled={uploading || (isRecording && recordingMode !== 'voice')}
+                title={isRecording && recordingMode === 'voice' ? 'Stop Recording (Voice Note)' : 'Record Voice'}
+                style={{ color: isRecording && recordingMode === 'voice' ? '#ef4444' : 'inherit' }}
+              >
+                {isRecording && recordingMode === 'voice' ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 10v4M6 6v12M9 3v18M12 7v10M15 5v14M18 8v8M21 10v4" />
+                  </svg>
+                )}
+              </button>
             </div>
 
             <button className="note-creator-btn-close" type="button" onClick={submitNote}>

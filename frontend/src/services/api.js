@@ -1,5 +1,5 @@
-const API_BASE_URL = 'http://localhost:8000';
 const API_KEY = 'pUokR5fyjA866Phf32jq';
+const API_BASE_URL = '';
 
 export const apiClient = {
   async request(endpoint, options = {}) {
@@ -9,11 +9,19 @@ export const apiClient = {
       ...options.headers,
     };
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      credentials: 'include',
-      ...options,
-      headers,
-    });
+    let response;
+    try {
+      response = await fetch(endpoint, {
+        credentials: 'include',
+        ...options,
+        headers,
+      });
+    } catch (networkError) {
+      const error = new Error(`Network error: ${networkError.message}`);
+      error.status = 0;
+      error.isNetworkError = true;
+      throw error;
+    }
 
     const data = await response.json();
 
@@ -152,7 +160,7 @@ export const apiClient = {
 
   addNoteToGroup(groupId, noteId) {
     return this.request(`/groups/${groupId}/notes/${noteId}`, {
-        method: 'POST',
+      method: 'POST',
     });
   },
 
@@ -171,7 +179,7 @@ export const apiClient = {
     };
 
     const endpoint = fileType === 'image' ? `/notes/${noteId}/images` : `/notes/${noteId}/voices`;
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(endpoint, {
       method: 'POST',
       credentials: 'include',
       headers,
@@ -214,5 +222,65 @@ export const apiClient = {
     return this.request(`/notes/${noteId}/voices`, {
       method: 'GET',
     });
+  },
+
+  // AI
+  summarizeNote(noteId) {
+    return this.request('/ai/summarize', {
+      method: 'POST',
+      body: JSON.stringify({ note_id: noteId }),
+    });
+  },
+
+  rewriteNote(noteId, theme) {
+    return this.request('/ai/rewrite', {
+      method: 'POST',
+      body: JSON.stringify({ note_id: noteId, theme }),
+    });
+  },
+
+  getRewriteThemes() {
+    return this.request('/ai/themes', {
+      method: 'GET',
+    });
+  },
+
+  summarizeAndApply(noteId) {
+    return this.request('/ai/summarize-and-apply', {
+      method: 'POST',
+      body: JSON.stringify({ note_id: noteId }),
+    });
+  },
+
+  rewriteAndApply(noteId, theme) {
+    return this.request('/ai/rewrite-and-apply', {
+      method: 'POST',
+      body: JSON.stringify({ note_id: noteId, theme }),
+    });
+  },
+
+  async transcribeAudio(audioBlob, extension = 'webm') {
+    const formData = new FormData();
+    formData.append('file', audioBlob, `recording_${Date.now()}.webm`);
+
+    const response = await fetch(`${API_BASE_URL}/ai/transcribe`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'X-API-Key': API_KEY,
+      },
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      const error = new Error(data.detail || 'Transcription failed');
+      error.status = response.status;
+      error.data = data;
+      throw error;
+    }
+
+    return data;
   },
 };

@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect, useRef } from 'react'
+import { FileText, Loader2, ChevronDown, PenTool, Type, BookOpen, Zap, GitBranch, Minus, Anchor, Crown, Smile, Brain, Zap as ZapIcon, Feather, Heart, Shield } from 'lucide-react'
 import { apiClient } from '../services/api'
 
 function escapeHtml(text = '') {
@@ -29,12 +30,6 @@ function serializePlaceholder(type, index, meta = {}) {
   const parts = []
   if (meta.width) parts.push(`w=${meta.width}`)
   return parts.length > 0 ? `[${type}:${index}|${parts.join('|')}]` : `[${type}:${index}]`
-}
-
-function formatTime(seconds) {
-  const mins = Math.floor(seconds / 60)
-  const secs = seconds % 60
-  return `${mins}:${secs.toString().padStart(2, '0')}`
 }
 
 function findImageUrlByIndex(images, index) {
@@ -104,8 +99,15 @@ export default function NoteModal({ initial, onCancel, onSave }) {
   const [bodyLength, setBodyLength] = useState((initial?.body || initial?.note_body || '').length)
   const [isResizing, setIsResizing] = useState(false)
   const [handlePos, setHandlePos] = useState(null)
-  const [isRecording, setIsRecording] = useState(false)
-  const [recordingTime, setRecordingTime] = useState(0)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [rewriteMenuOpen, setRewriteMenuOpen] = useState(false)
+  const [rewriteLoading, setRewriteLoading] = useState(false)
+  const [rewriteThemes, setRewriteThemes] = useState({})
+  const [summary, setSummary] = useState('')
+  const [rewriteModalOpen, setRewriteModalOpen] = useState(false)
+  const [rewriteTheme, setRewriteTheme] = useState(null)
+  const [rewrittenContent, setRewrittenContent] = useState('')
+  const [originalContent, setOriginalContent] = useState('')
 
   const contentRef = useRef(null)
   const editorRef = useRef(null)
@@ -116,8 +118,37 @@ export default function NoteModal({ initial, onCancel, onSave }) {
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
   const recordingTimerRef = useRef(null)
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingError, setRecordingError] = useState('')
+  const [recordingMode, setRecordingMode] = useState(null)
+  const recordingModeRef = useRef(null)
 
   const isEdit = Boolean(initial?.id || initial?.note_id)
+
+  useEffect(() => {
+    if (isEdit) {
+      apiClient.getRewriteThemes()
+        .then(data => setRewriteThemes(data.themes || {}))
+        .catch(() => setRewriteThemes({}))
+    }
+  }, [isEdit])
+
+  const themeIcons = {
+    professional: PenTool,
+    concise: Minus,
+    'bullet-points': Type,
+    simplified: BookOpen,
+    'action-items': Zap,
+    creative: GitBranch,
+    pirate: Anchor,
+    shakespeare: Crown,
+    'gen-z': Smile,
+    yoda: Brain,
+    corporate: ZapIcon,
+    poet: Feather,
+    'drill-sergeant': Shield,
+    therapist: Heart,
+  }
 
   useEffect(() => {
     if (editorRef.current) {
@@ -323,6 +354,127 @@ export default function NoteModal({ initial, onCancel, onSave }) {
     savedRangeRef.current = range.cloneRange()
   }
 
+  // Recording functions
+  const stopRecording = useCallback(async () => {
+    if (!mediaRecorderRef.current || !isRecording) return
+
+    setIsRecording(false)
+    setRecordingError('')
+
+    return new Promise((resolve) => {
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.onstop = async () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+          audioChunksRef.current = []
+          
+          const mode = recordingModeRef.current
+          recordingModeRef.current = null
+          setRecordingMode(null)
+
+          if (audioBlob.size > 0 && editorRef.current) {
+            const noteId = initial?.id || initial?.note_id
+            if (mode === 'stt') {
+              try {
+                setUploading(true)
+                const res = await apiClient.transcribeAudio(audioBlob)
+                if (res.text) {
+                  insertHtmlAtCursor(editorRef.current, ` ${res.text} `)
+                  setBodyLength(htmlToBody(editorRef.current.innerHTML).length)
+                }
+              } catch (err) {
+                setRecordingError('Failed to transcribe audio: ' + err.message)
+              } finally {
+                setUploading(false)
+              }
+            } else {
+              if (isEdit) {
+                try {
+                  setUploading(true)
+                  const file = new File([audioBlob], `voice-${Date.now()}.webm`, { type: 'audio/webm' })
+                  const res = await apiClient.uploadVoice(noteId, file)
+                  if (res.placeholder && res.voice?.voice_url) {
+                    let audioHtml = `<audio class="note-body-audio editor-audio" controls contenteditable="false" data-placeholder="${res.placeholder}" src="${res.voice.voice_url}" style="width:100%; max-width:400px; margin:8px 0;"></audio>`
+                    insertHtmlAtCursor(editorRef.current, audioHtml)
+                    setBodyLength(htmlToBody(editorRef.current.innerHTML).length)
+                  }
+                } catch (err) {
+                  setRecordingError('Failed to upload voice: ' + err.message)
+                } finally {
+                  setUploading(false)
+                }
+              } else {
+                const pendingId = `pending-voice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+                pendingFilesRef.current[pendingId] = audioBlob
+                const blobUrl = URL.createObjectURL(audioBlob)
+                const audioHtml = `<audio class="note-body-audio editor-audio pending-audio" controls data-pending-id="${pendingId}" src="${blobUrl}" style="width:100%; max-width:400px; margin:8px 0;"></audio>`
+                insertHtmlAtCursor(editorRef.current, audioHtml)
+                setBodyLength(htmlToBody(editorRef.current.innerHTML).length)
+              }
+            }
+          }
+          resolve()
+        }
+        mediaRecorderRef.current.stop()
+        mediaRecorderRef.current.stream?.getTracks().forEach(track => track.stop())
+        mediaRecorderRef.current = null
+      }
+      
+      if (recordingTimerRef.current) {
+        clearTimeout(recordingTimerRef.current)
+        recordingTimerRef.current = null
+      }
+    })
+  }, [isRecording, isEdit, initial])
+
+  const startRecording = useCallback(async (mode = 'voice') => {
+    if (isRecording) return
+
+    try {
+      setRecordingError('')
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+      
+      audioChunksRef.current = []
+      mediaRecorderRef.current = mediaRecorder
+      recordingModeRef.current = mode
+      setRecordingMode(mode)
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      }
+
+      mediaRecorder.start(100)
+      setIsRecording(true)
+
+      // Auto-stop after 60 seconds
+      recordingTimerRef.current = setTimeout(() => {
+        stopRecording()
+      }, 60000)
+    } catch (err) {
+      setRecordingError('Failed to start recording: ' + err.message)
+      recordingModeRef.current = null
+      setRecordingMode(null)
+    }
+  }, [isRecording, stopRecording])
+
+  const toggleRecording = useCallback((mode) => {
+    if (isRecording) {
+      stopRecording()
+    } else {
+      startRecording(mode)
+    }
+  }, [isRecording, startRecording, stopRecording])
+
+  useEffect(() => {
+    return () => {
+      if (isRecording) {
+        stopRecording()
+      }
+    }
+  }, [isRecording, stopRecording])
+
   async function handleImageUpload(e) {
     const fileList = e.target.files
     const files = Array.from(fileList || [])
@@ -376,78 +528,66 @@ export default function NoteModal({ initial, onCancel, onSave }) {
     }
   }
 
-  function startRecordingTimer() {
-    setRecordingTime(0)
-    recordingTimerRef.current = setInterval(() => {
-      setRecordingTime(prev => prev + 1)
-    }, 1000)
-  }
-
-  function stopRecordingTimer() {
-    if (recordingTimerRef.current) {
-      clearInterval(recordingTimerRef.current)
-      recordingTimerRef.current = null
-    }
-  }
-
-  async function startVoiceRecording() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      audioChunksRef.current = []
-      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: 'audio/webm' })
-
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data)
-        }
-      }
-
-      mediaRecorderRef.current.onstop = async () => {
-        stream.getTracks().forEach(track => track.stop())
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
-        await uploadVoiceRecording(audioBlob)
-      }
-
-      mediaRecorderRef.current.start()
-      setIsRecording(true)
-      startRecordingTimer()
-    } catch (err) {
-      setError('Failed to start recording: ' + err.message)
-    }
-  }
-
-  function stopVoiceRecording() {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop()
-    }
-    setIsRecording(false)
-    stopRecordingTimer()
-  }
-
-  async function uploadVoiceRecording(audioBlob) {
-    setUploading(true)
+  async function handleSummarize() {
     const noteId = initial?.id || initial?.note_id
+    if (!noteId) {
+      setError('Note must be saved first to use Summarize')
+      return
+    }
+    setAiLoading(true)
     try {
-      if (isEdit) {
-        const file = new File([audioBlob], `voice-${Date.now()}.webm`, { type: 'audio/webm' })
-        const res = await apiClient.uploadVoice(noteId, file)
-        if (res.placeholder && res.voice?.voice_url && editorRef.current) {
-          const audioHtml = `<audio class="note-body-audio editor-audio" controls contenteditable="false" data-placeholder="${res.placeholder}" src="${res.voice.voice_url}" style="width:100%; max-width:400px; margin:8px 0;"></audio>`
-          insertHtmlAtCursor(editorRef.current, audioHtml)
-          setBodyLength(htmlToBody(editorRef.current.innerHTML).length)
-        }
-      } else {
-        const pendingId = `pending-voice-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-        pendingFilesRef.current[pendingId] = audioBlob
-        const blobUrl = URL.createObjectURL(audioBlob)
-        const audioHtml = `<audio class="note-body-audio editor-audio pending-audio" controls data-pending-id="${pendingId}" src="${blobUrl}" style="width:100%; max-width:400px; margin:8px 0;"></audio>`
-        insertHtmlAtCursor(editorRef.current, audioHtml)
-        setBodyLength(htmlToBody(editorRef.current.innerHTML).length)
-      }
+      const result = await apiClient.summarizeNote(noteId)
+      setSummary(result.summary)
     } catch (err) {
-      setError('Failed to upload voice: ' + err.message)
+      setError(err.message || 'Failed to summarize')
     } finally {
-      setUploading(false)
+      setAiLoading(false)
+    }
+  }
+
+  function handleSaveSummary() {
+    if (!summary || !editorRef.current) return
+    const currentHtml = editorRef.current.innerHTML
+    const currentBody = htmlToBody(currentHtml)
+    const newBody = currentBody ? `${currentBody}\n\n---\n**Summary:**\n${summary}` : `**Summary:**\n${summary}`
+    const newHtml = bodyToHtml(newBody, initial?.mediaImages || [], initial?.mediaVoices || [])
+    editorRef.current.innerHTML = newHtml
+    setBodyLength(newBody.length)
+    setSummary('')
+  }
+
+  async function handleRewrite(themeKey) {
+    const noteId = initial?.id || initial?.note_id
+    const bodyText = editorRef.current ? htmlToBody(editorRef.current.innerHTML) : ''
+    if (!noteId || !bodyText.trim()) {
+      setError('Note must be saved with content to use Rewrite')
+      return
+    }
+    setRewriteTheme(themeKey)
+    setOriginalContent(bodyText)
+    setRewrittenContent('')
+    setRewriteLoading(true)
+    setRewriteMenuOpen(false)
+    setRewriteModalOpen(true)
+    try {
+      const result = await apiClient.rewriteNote(noteId, themeKey)
+      setRewrittenContent(result.rewritten_content)
+    } catch (err) {
+      setRewrittenContent(err.message || 'Failed to rewrite')
+    } finally {
+      setRewriteLoading(false)
+    }
+  }
+
+  function handleApplyRewrite() {
+    if (editorRef.current && rewrittenContent) {
+      const newHtml = bodyToHtml(rewrittenContent, initial?.mediaImages || [], initial?.mediaVoices || [])
+      editorRef.current.innerHTML = newHtml
+      setBodyLength(rewrittenContent.length)
+      setRewriteModalOpen(false)
+      setRewriteTheme(null)
+      setRewrittenContent('')
+      setOriginalContent('')
     }
   }
 
@@ -602,6 +742,47 @@ export default function NoteModal({ initial, onCancel, onSave }) {
 
         {/* Contenteditable Body Editor */}
         <div className="note-body-editor-wrapper" style={{ margin: 0 }}>
+          {summary && (
+            <div style={{
+              backgroundColor: '#e8f5e9',
+              border: '1px solid #c8e6c9',
+              borderRadius: '8px',
+              padding: '12px 16px',
+              marginBottom: '12px',
+              fontSize: '14px',
+              lineHeight: '1.6',
+              color: '#333',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '8px'
+            }}>
+              <div style={{ flex: 1 }}>
+                <strong style={{ color: '#2e7d32' }}>Summary:</strong> {summary}
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveSummary}
+                title="Save summary to note body"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  borderRadius: '4px',
+                  color: '#2e7d32',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                  <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                  <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+              </button>
+            </div>
+          )}
           <div
             className="note-body-editor ce-editor modal-editor"
             ref={editorRef}
@@ -666,16 +847,17 @@ export default function NoteModal({ initial, onCancel, onSave }) {
               </label>
             )}
 
-            {/* SVG Voice Recording Button */}
+            {/* Speech to Text Button */}
             <button
               type="button"
-              className={`card-icon-btn ${isRecording ? 'recording' : ''}`}
-              onClick={isRecording ? stopVoiceRecording : startVoiceRecording}
-              disabled={uploading}
-              title={isRecording ? "Stop Recording" : "Record Voice"}
+              className={`card-icon-btn ${isRecording && recordingMode === 'stt' ? 'recording' : ''}`}
+              onClick={() => toggleRecording('stt')}
+              disabled={uploading || (isRecording && recordingMode !== 'stt')}
+              title={isRecording && recordingMode === 'stt' ? "Stop Recording (Speech to Text)" : "Speech to Text"}
+              style={{ color: isRecording && recordingMode === 'stt' ? '#ef4444' : 'inherit' }}
             >
-              {isRecording ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#fff' }}>
+              {isRecording && recordingMode === 'stt' ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
                 </svg>
               ) : (
@@ -687,11 +869,74 @@ export default function NoteModal({ initial, onCancel, onSave }) {
                 </svg>
               )}
             </button>
-            {isRecording && (
-              <span style={{ fontSize: '12px', color: 'var(--danger)', fontWeight: 'bold' }}>
-                {formatTime(recordingTime)}
-              </span>
-            )}
+
+            {/* SVG Voice Recording Button */}
+            <button
+              type="button"
+              className={`card-icon-btn ${isRecording && recordingMode === 'voice' ? 'recording' : ''}`}
+              onClick={() => toggleRecording('voice')}
+              disabled={uploading || (isRecording && recordingMode !== 'voice')}
+              title={isRecording && recordingMode === 'voice' ? "Stop Recording (Voice Note)" : "Record Voice"}
+              style={{ color: isRecording && recordingMode === 'voice' ? '#ef4444' : 'inherit' }}
+            >
+              {isRecording && recordingMode === 'voice' ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 10v4M6 6v12M9 3v18M12 7v10M15 5v14M18 8v8M21 10v4" />
+                </svg>
+              )}
+            </button>
+            {recordingError && <div className="modal-error" style={{ fontSize: '12px', marginTop: '8px' }}>{recordingError}</div>}
+          </div>
+
+          {/* AI Toolbar - Summarize & Rewrite */}
+          <div className="media-upload" style={{ marginLeft: 'auto', display: 'flex', gap: '4px' }}>
+            <button
+              type="button"
+              className="ai-toolbar-btn"
+              title="Summarize"
+              onClick={handleSummarize}
+              disabled={aiLoading || !isEdit}
+            >
+              {aiLoading ? <Loader2 width="18" height="18" className="spin" /> : <FileText width="18" height="18" />}
+            </button>
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                className="ai-toolbar-btn"
+                title="Rewrite with Theme"
+                onClick={(e) => { e.stopPropagation(); setRewriteMenuOpen(!rewriteMenuOpen); }}
+                disabled={aiLoading || rewriteLoading || !isEdit}
+              >
+                <PenTool width="18" height="18" />
+                <ChevronDown width="14" height="14" style={{ marginLeft: '2px' }} />
+              </button>
+              {rewriteMenuOpen && (
+                <div onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', right: 0, top: '100%', marginTop: '4px', background: 'var(--bg-secondary, white)', border: '1px solid var(--border-color, #e0e0e0)', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 100, minWidth: '180px', maxHeight: '180px', overflowY: 'auto' }}>
+                  {Object.entries(rewriteThemes).map(([key, { label, description }]) => {
+                    const Icon = themeIcons[key] || PenTool
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleRewrite(key); }}
+                        disabled={rewriteLoading}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', border: 'none', background: 'none', cursor: rewriteLoading ? 'wait' : 'pointer', textAlign: 'left', color: 'var(--text-primary, #333)', fontSize: '13px' }}
+                      >
+                        <Icon width="16" height="16" style={{ opacity: 0.7 }} />
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span>{label}</span>
+                          <span style={{ fontSize: '11px', opacity: 0.6 }}>{description}</span>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="modal-actions">
@@ -702,6 +947,46 @@ export default function NoteModal({ initial, onCancel, onSave }) {
           </div>
         </div>
       </form>
+
+      {rewriteModalOpen && (
+        <div className="modal" onClick={(e) => e.target === e.currentTarget && setRewriteModalOpen(false)} role="dialog" aria-modal="true" style={{ zIndex: 1100 }}>
+          <div className="modal-content" style={{ maxWidth: '1000px', width: '90vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid var(--border-color, #e0e0e0)' }}>
+              <h3 style={{ margin: 0, fontSize: '18px' }}>Rewrite Preview - {rewriteThemes[rewriteTheme]?.label || rewriteTheme}</h3>
+              <button type="button" onClick={() => setRewriteModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: 'var(--text-secondary, #666)', lineHeight: 1 }}>×</button>
+            </div>
+
+            {rewriteLoading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px' }}>
+                <div className="spin" style={{ width: '32px', height: '32px', border: '3px solid var(--border-color, #e0e0e0)', borderTopColor: 'var(--primary, #1976d2)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flex: 1, overflow: 'hidden', gap: '16px' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                  <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary, #666)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Original</div>
+                  <div style={{ flex: 1, background: 'var(--bg-secondary, #fafafa)', border: '1px solid var(--border-color, #e0e0e0)', borderRadius: '8px', padding: '16px', overflow: 'auto', fontSize: '14px', lineHeight: '1.6', color: 'var(--text-primary, #333)', whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>
+                    {originalContent || '(empty)'}
+                  </div>
+                </div>
+
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                  <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary, #666)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Rewritten</div>
+                  <div style={{ flex: 1, background: 'var(--bg-secondary, #fafafa)', border: '1px solid var(--border-color, #e0e0e0)', borderRadius: '8px', padding: '16px', overflow: 'auto', fontSize: '14px', lineHeight: '1.6', color: 'var(--text-primary, #333)', whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>
+                    {rewrittenContent || '(empty)'}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--border-color, #e0e0e0)' }}>
+              <button type="button" className="btn ghost" onClick={() => setRewriteModalOpen(false)} disabled={rewriteLoading} style={{ fontWeight: '500' }}>Cancel</button>
+              <button type="button" className="note-creator-btn-close" onClick={handleApplyRewrite} disabled={rewriteLoading || !rewrittenContent} style={{ fontWeight: '600' }}>
+                {rewriteLoading ? 'Saving...' : 'Apply Rewrite'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

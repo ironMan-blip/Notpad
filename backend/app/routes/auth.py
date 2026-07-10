@@ -1,19 +1,14 @@
 import uuid
 
 import bcrypt
-from fastapi import APIRouter, HTTPException, Request, Depends
-from typing import Optional
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from fastapi import APIRouter, HTTPException, Request
 
 from app.utils.data_loader import get_record, create_record
 from app.utils.database import DBUser
 from app.schemas.user import UserCreate
-from app.utils.dependencies import verify_api_key
+from app.utils.limiter import limiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-limiter = Limiter(key_func=get_remote_address)
 
 
 def _hash_password(password: str) -> str:

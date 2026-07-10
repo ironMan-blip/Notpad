@@ -4,19 +4,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.utils.data_loader import init_db
-from app.routes import notes, auth, group
+from app.routes import notes, auth, group, ai
 from app.core.config import settings
+from app.utils.limiter import limiter
 
 init_db()
 
 app = FastAPI(title=settings.app_name, debug=settings.debug)
 
-limiter = Limiter(key_func=get_remote_address, default_limits=[f"{settings.rate_limit_requests}/minute"])
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -42,3 +41,4 @@ app.mount(
 app.include_router(auth.router)
 app.include_router(notes.router)
 app.include_router(group.router)
+app.include_router(ai.router)

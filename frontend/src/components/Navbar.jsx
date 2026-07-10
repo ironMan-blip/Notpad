@@ -1,5 +1,5 @@
 import SearchNotes from './SearchNotes'
-import { useAuth } from '../context/useAuth'
+import { useAuth } from '../context/AuthContext'
 
 export default function Navbar({ search, setSearch, setIsOpen, setEditing, collapsed, setCollapsed }) {
   const { logout } = useAuth()
