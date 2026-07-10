@@ -3,7 +3,12 @@ from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 from app.core.config import settings
 
-DATABASE_URL = settings.database_url or "postgresql+psycopg://mashrafimahmudrafi@localhost:5432/mydb"
+if settings.database_url:
+    DATABASE_URL = settings.database_url
+elif settings.postgres_user and settings.postgres_password:
+    DATABASE_URL = f"postgresql+psycopg://{settings.postgres_user}:{settings.postgres_password}@{settings.postgres_host}:{settings.postgres_port}/{settings.postgres_db}"
+else:
+    DATABASE_URL = "postgresql+psycopg://mashrafimahmudrafi@localhost:5432/mydb"
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

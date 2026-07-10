@@ -55,6 +55,27 @@ class Settings(BaseSettings):
         description="Database connection URL",
     )
     
+    postgres_user: Optional[str] = Field(
+        default=None,
+        description="Database username",
+    )
+    postgres_password: Optional[str] = Field(
+        default=None,
+        description="Database password",
+    )
+    postgres_host: Optional[str] = Field(
+        default="localhost",
+        description="Database host",
+    )
+    postgres_port: Optional[str] = Field(
+        default="5432",
+        description="Database port",
+    )
+    postgres_db: Optional[str] = Field(
+        default="mydb",
+        description="Database name",
+    )
+    
     api_base_url: Optional[str] = Field(
         default=None,
         description="Public base URL for the API (used for absolute URLs in responses)",
