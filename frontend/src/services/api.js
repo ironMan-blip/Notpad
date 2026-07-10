@@ -1,5 +1,5 @@
 const API_KEY = 'pUokR5fyjA866Phf32jq';
-const API_BASE_URL = '';
+const API_BASE_URL = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/$/, '');
 
 export const apiClient = {
   async request(endpoint, options = {}) {
@@ -11,7 +11,8 @@ export const apiClient = {
 
     let response;
     try {
-      response = await fetch(endpoint, {
+      const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+      response = await fetch(url, {
         credentials: 'include',
         ...options,
         headers,
@@ -179,7 +180,7 @@ export const apiClient = {
     };
 
     const endpoint = fileType === 'image' ? `/notes/${noteId}/images` : `/notes/${noteId}/voices`;
-    const response = await fetch(endpoint, {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
       credentials: 'include',
       headers,
