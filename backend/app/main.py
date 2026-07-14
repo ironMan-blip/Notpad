@@ -22,6 +22,8 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret,
+    same_site="lax" if settings.debug else "none",
+    https_only=not settings.debug,
 )
 
 app.add_middleware(
