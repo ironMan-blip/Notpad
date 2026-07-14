@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 
+from app.core.config import settings
 from app.services.ai_service import ai_service
 import app.utils.data_loader as dl
 from app.utils.database import DBUser, DBNote, DBPicture, DBVoice
