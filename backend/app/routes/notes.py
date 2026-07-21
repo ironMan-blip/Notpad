@@ -324,7 +324,7 @@ def delete_note(request: Request, note_id: str, user_id: str = Depends(require_u
 async def upload_note_image(request: Request, note_id: str, file: UploadFile = File(...), user_id: str = Depends(require_user_id)):
     """Upload an image and return a placeholder token for the note body."""
 
-    note = await anyio.to_thread.run_sync(dl.get_record, DBNote, note_id=note_id, user_id=user_id)
+    note = await anyio.to_thread.run_sync(lambda: dl.get_record(DBNote, note_id=note_id, user_id=user_id))
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
 
@@ -333,7 +333,7 @@ async def upload_note_image(request: Request, note_id: str, file: UploadFile = F
     )
     image_url = _make_upload_url(request, f"images/{filename}")
 
-    existing = await anyio.to_thread.run_sync(dl.get_record, DBPicture, note_id=note_id, file_hash=file_hash)
+    existing = await anyio.to_thread.run_sync(lambda: dl.get_record(DBPicture, note_id=note_id, file_hash=file_hash))
 
     if existing:
         picture = existing
@@ -348,23 +348,26 @@ async def upload_note_image(request: Request, note_id: str, file: UploadFile = F
     else:
         next_index = _get_next_image_index(note)
         picture = await anyio.to_thread.run_sync(
-            dl.create_record,
-            DBPicture,
-            picture_id=str(uuid.uuid4()),
-            note_id=note_id,
-            user_id=user_id,
-            picture_url=image_url,
-            file_hash=file_hash,
-            index=next_index
+            lambda: dl.create_record(
+                DBPicture,
+                picture_id=str(uuid.uuid4()),
+                note_id=note_id,
+                user_id=user_id,
+                picture_url=image_url,
+                file_hash=file_hash,
+                index=next_index
+            )
         )
         placeholder = _make_media_placeholder("image", next_index)
         new_body = f"{note.note_body} {placeholder}" if note.note_body else placeholder
         await anyio.to_thread.run_sync(
-            dl.update_record, DBNote, filter_kwargs={"note_id": note_id, "user_id": user_id}, update_kwargs={"note_body": new_body}
+            lambda: dl.update_record(
+                DBNote, filter_kwargs={"note_id": note_id, "user_id": user_id}, update_kwargs={"note_body": new_body}
+            )
         )
 
     placeholder = _make_media_placeholder("image", next_index)
-    updated_note = await anyio.to_thread.run_sync(dl.get_record, DBNote, note_id=note_id, user_id=user_id)
+    updated_note = await anyio.to_thread.run_sync(lambda: dl.get_record(DBNote, note_id=note_id, user_id=user_id))
     return {
         "message": "Image uploaded successfully" if not existing else "Image already exists in this note",
         "image": picture,
@@ -378,7 +381,7 @@ async def upload_note_image(request: Request, note_id: str, file: UploadFile = F
 async def upload_note_voice(request: Request, note_id: str, file: UploadFile = File(...), user_id: str = Depends(require_user_id)):
     """Upload a voice file and return a placeholder token for the note body."""
 
-    note = await anyio.to_thread.run_sync(dl.get_record, DBNote, note_id=note_id, user_id=user_id)
+    note = await anyio.to_thread.run_sync(lambda: dl.get_record(DBNote, note_id=note_id, user_id=user_id))
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
 
@@ -398,23 +401,26 @@ async def upload_note_voice(request: Request, note_id: str, file: UploadFile = F
 
     next_index = _get_next_voice_index(note)
     voice = await anyio.to_thread.run_sync(
-        dl.create_record,
-        DBVoice,
-        voice_id=str(uuid.uuid4()),
-        note_id=note_id,
-        user_id=user_id,
-        voice_url=voice_url,
-        index=next_index,
-        transcript=transcript
+        lambda: dl.create_record(
+            DBVoice,
+            voice_id=str(uuid.uuid4()),
+            note_id=note_id,
+            user_id=user_id,
+            voice_url=voice_url,
+            index=next_index,
+            transcript=transcript
+        )
     )
 
     placeholder = _make_media_placeholder("audio", next_index)
     new_body = f"{note.note_body} {placeholder}" if note.note_body else placeholder
     await anyio.to_thread.run_sync(
-        dl.update_record, DBNote, filter_kwargs={"note_id": note_id, "user_id": user_id}, update_kwargs={"note_body": new_body}
+        lambda: dl.update_record(
+            DBNote, filter_kwargs={"note_id": note_id, "user_id": user_id}, update_kwargs={"note_body": new_body}
+        )
     )
 
-    updated_note = await anyio.to_thread.run_sync(dl.get_record, DBNote, note_id=note_id, user_id=user_id)
+    updated_note = await anyio.to_thread.run_sync(lambda: dl.get_record(DBNote, note_id=note_id, user_id=user_id))
     return {
         "message": "Voice uploaded successfully",
         "voice": voice,
