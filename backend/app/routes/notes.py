@@ -1,4 +1,5 @@
 import asyncio
+import anyio
 import filetype
 import hashlib
 import re
@@ -320,21 +321,23 @@ def delete_note(request: Request, note_id: str, user_id: str = Depends(require_u
 
 @router.post("/{note_id}/images")
 @limiter.limit("30/minute")
-def upload_note_image(request: Request, note_id: str, file: UploadFile = File(...), user_id: str = Depends(require_user_id)):
+async def upload_note_image(request: Request, note_id: str, file: UploadFile = File(...), user_id: str = Depends(require_user_id)):
     """Upload an image and return a placeholder token for the note body."""
 
-    note = dl.get_record(DBNote, note_id=note_id, user_id=user_id)
+    note = await anyio.to_thread.run_sync(dl.get_record, DBNote, note_id=note_id, user_id=user_id)
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
 
-    filename, file_hash = _save_upload_file(file, IMAGE_UPLOAD_DIR, ALLOWED_IMAGE_MIME_TYPES, MAX_IMAGE_SIZE)
+    filename, file_hash = await anyio.to_thread.run_sync(
+        _save_upload_file, file, IMAGE_UPLOAD_DIR, ALLOWED_IMAGE_MIME_TYPES, MAX_IMAGE_SIZE
+    )
     image_url = _make_upload_url(request, f"images/{filename}")
 
-    existing = dl.get_record(DBPicture, note_id=note_id, file_hash=file_hash)
+    existing = await anyio.to_thread.run_sync(dl.get_record, DBPicture, note_id=note_id, file_hash=file_hash)
 
     if existing:
         picture = existing
-        (IMAGE_UPLOAD_DIR / filename).unlink(missing_ok=True)
+        await anyio.to_thread.run_sync(lambda: (IMAGE_UPLOAD_DIR / filename).unlink(missing_ok=True))
         next_index = None
         for ref in note.images:
             if ref.id == picture.picture_id:
@@ -344,7 +347,8 @@ def upload_note_image(request: Request, note_id: str, file: UploadFile = File(..
             next_index = _get_next_image_index(note)
     else:
         next_index = _get_next_image_index(note)
-        picture = dl.create_record(
+        picture = await anyio.to_thread.run_sync(
+            dl.create_record,
             DBPicture,
             picture_id=str(uuid.uuid4()),
             note_id=note_id,
@@ -355,10 +359,12 @@ def upload_note_image(request: Request, note_id: str, file: UploadFile = File(..
         )
         placeholder = _make_media_placeholder("image", next_index)
         new_body = f"{note.note_body} {placeholder}" if note.note_body else placeholder
-        dl.update_record(DBNote, filter_kwargs={"note_id": note_id, "user_id": user_id}, update_kwargs={"note_body": new_body})
+        await anyio.to_thread.run_sync(
+            dl.update_record, DBNote, filter_kwargs={"note_id": note_id, "user_id": user_id}, update_kwargs={"note_body": new_body}
+        )
 
     placeholder = _make_media_placeholder("image", next_index)
-    updated_note = dl.get_record(DBNote, note_id=note_id, user_id=user_id)
+    updated_note = await anyio.to_thread.run_sync(dl.get_record, DBNote, note_id=note_id, user_id=user_id)
     return {
         "message": "Image uploaded successfully" if not existing else "Image already exists in this note",
         "image": picture,
@@ -369,40 +375,46 @@ def upload_note_image(request: Request, note_id: str, file: UploadFile = File(..
 
 @router.post("/{note_id}/voices")
 @limiter.limit("30/minute")
-def upload_note_voice(request: Request, note_id: str, file: UploadFile = File(...), user_id: str = Depends(require_user_id)):
+async def upload_note_voice(request: Request, note_id: str, file: UploadFile = File(...), user_id: str = Depends(require_user_id)):
     """Upload a voice file and return a placeholder token for the note body."""
 
-    note = dl.get_record(DBNote, note_id=note_id, user_id=user_id)
+    note = await anyio.to_thread.run_sync(dl.get_record, DBNote, note_id=note_id, user_id=user_id)
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
 
-    filename, _ = _save_upload_file(file, VOICE_UPLOAD_DIR, ALLOWED_VOICE_MIME_TYPES, MAX_VOICE_SIZE)
+    filename, _ = await anyio.to_thread.run_sync(
+        _save_upload_file, file, VOICE_UPLOAD_DIR, ALLOWED_VOICE_MIME_TYPES, MAX_VOICE_SIZE
+    )
     voice_url = _make_upload_url(request, f"voices/{filename}")
 
+    # Transcribe audio file using AI service on the backend
+    transcript = None
+    if ai_service.is_available():
+        try:
+            file_path = VOICE_UPLOAD_DIR / filename
+            transcript = await ai_service.transcribe_audio(str(file_path))
+        except Exception as e:
+            print(f"Error during audio transcription: {e}")
+
     next_index = _get_next_voice_index(note)
-    voice = dl.create_record(
+    voice = await anyio.to_thread.run_sync(
+        dl.create_record,
         DBVoice,
         voice_id=str(uuid.uuid4()),
         note_id=note_id,
         user_id=user_id,
         voice_url=voice_url,
-        index=next_index
+        index=next_index,
+        transcript=transcript
     )
-
-    # Transcribe audio file using AI service on the backend (Speech-to-Text on Backend only!)
-    transcript = None
-    if ai_service.is_available():
-        try:
-            file_path = VOICE_UPLOAD_DIR / filename
-            transcript = asyncio.run(ai_service.transcribe_audio(str(file_path)))
-        except Exception as e:
-            print(f"Error during audio transcription: {e}")
 
     placeholder = _make_media_placeholder("audio", next_index)
     new_body = f"{note.note_body} {placeholder}" if note.note_body else placeholder
-    dl.update_record(DBNote, filter_kwargs={"note_id": note_id, "user_id": user_id}, update_kwargs={"note_body": new_body})
+    await anyio.to_thread.run_sync(
+        dl.update_record, DBNote, filter_kwargs={"note_id": note_id, "user_id": user_id}, update_kwargs={"note_body": new_body}
+    )
 
-    updated_note = dl.get_record(DBNote, note_id=note_id, user_id=user_id)
+    updated_note = await anyio.to_thread.run_sync(dl.get_record, DBNote, note_id=note_id, user_id=user_id)
     return {
         "message": "Voice uploaded successfully",
         "voice": voice,

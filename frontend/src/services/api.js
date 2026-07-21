@@ -260,7 +260,7 @@ export const apiClient = {
     });
   },
 
-  async transcribeAudio(audioBlob, extension = 'webm') {
+  async transcribeAudio(audioBlob) {
     const formData = new FormData();
     formData.append('file', audioBlob, `recording_${Date.now()}.webm`);
 

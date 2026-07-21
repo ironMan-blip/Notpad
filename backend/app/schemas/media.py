@@ -11,6 +11,7 @@ class Voice(BaseModel):
     note_id: str
     user_id: str
     voice_url: str
+    transcript: Optional[str] = None
 
     @field_validator("voice_id", "note_id", "user_id")
     @classmethod

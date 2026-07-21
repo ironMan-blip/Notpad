@@ -23,7 +23,10 @@ def db_session():
 
 def init_db() -> None:
     from app.utils.database import Base, engine
+    from sqlalchemy import text
     Base.metadata.create_all(bind=engine)
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE voices ADD COLUMN IF NOT EXISTS transcript VARCHAR;"))
 
 
 def _to_schema(db_obj: Any) -> Any:
@@ -61,7 +64,8 @@ def _to_schema(db_obj: Any) -> Any:
             voice_id=db_obj.voice_id,
             note_id=db_obj.note_id,
             user_id=db_obj.user_id,
-            voice_url=db_obj.voice_url
+            voice_url=db_obj.voice_url,
+            transcript=db_obj.transcript
         )
     elif isinstance(db_obj, DBGroup):
         return {

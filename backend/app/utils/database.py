@@ -83,5 +83,6 @@ class DBVoice(Base):
     user_id = Column(String, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
     voice_url = Column(String, nullable=False)
     index = Column(Integer, nullable=False)
+    transcript = Column(String, nullable=True)
 
     note = relationship("DBNote", back_populates="voices")

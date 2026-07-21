@@ -39,13 +39,6 @@ function findImageUrlByIndex(images, index) {
   return ref?.picture_url || ref?.image_url || ref?.url || null
 }
 
-function findVoiceUrlByIndex(voices, index) {
-  if (!voices) return null
-  const ref = Array.isArray(voices) ? voices.find(item => item.index === index) : null
-  if (!ref) return null
-  return ref?.voice_url || ref?.url || ref?.audio_url || ref?.file_url || null
-}
-
 function bodyToHtml(body = '', images = [], voices = []) {
   const escaped = escapeHtml(body)
   return escaped.replace(/\[(IMG|AUD):(\d+)(\|[^\]]+)?\]/g, (match, type, index) => {
@@ -58,10 +51,15 @@ function bodyToHtml(body = '', images = [], voices = []) {
       return `<img class="note-body-image editor-image" contenteditable="false" data-placeholder="${dataPlaceholder}" src="${src}" style="${widthStyle} vertical-align:middle; margin:4px;" />`
     }
     if (type === 'AUD') {
-      const src = findVoiceUrlByIndex(voices, Number(index))
+      const voiceIndex = Number(index)
+      const voiceObj = Array.isArray(voices) ? voices.find(item => item.index === voiceIndex) : null
+      const src = voiceObj?.voice_url || voiceObj?.url || voiceObj?.audio_url || voiceObj?.file_url || null
       if (!src) return `<span class="note-placeholder">${escapeHtml(match)}</span>`
-      const dataPlaceholder = serializePlaceholder(type, Number(index), meta)
-      return `<audio controls class="note-body-audio editor-audio" contenteditable="false" data-placeholder="${dataPlaceholder}" src="${src}" style="width:100%; max-width:400px; margin:8px 0;"></audio>`
+      const dataPlaceholder = serializePlaceholder(type, voiceIndex, meta)
+      const transcriptHtml = voiceObj?.transcript
+        ? `<div class="voice-transcript" contenteditable="false" style="font-size: 0.85em; color: var(--text-secondary, #666); margin: -4px 0 12px 0; padding-left: 8px; border-left: 2px solid #5271ff; font-style: italic; max-width: 400px; word-wrap: break-word;">“${escapeHtml(voiceObj.transcript)}”</div>`
+        : ''
+      return `<audio controls class="note-body-audio editor-audio" contenteditable="false" data-placeholder="${dataPlaceholder}" src="${src}" style="width:100%; max-width:400px; margin:8px 0;"></audio>${transcriptHtml}`
     }
     return `<span class="note-placeholder">${escapeHtml(match)}</span>`
   }).replace(/\n/g, '<br>')
@@ -79,6 +77,9 @@ function htmlToBody(html = '') {
     }
     if (node.nodeName === 'IMG' || node.nodeName === 'AUDIO') {
       return node.dataset.placeholder ? node.dataset.placeholder : ''
+    }
+    if (node.classList && node.classList.contains('voice-transcript')) {
+      return ''
     }
     const children = Array.from(node.childNodes).map(nodeToText).join('')
     if (['DIV', 'P', 'LI', 'BLOCKQUOTE', 'PRE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(node.nodeName)) {

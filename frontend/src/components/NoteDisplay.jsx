@@ -64,22 +64,29 @@ export default function NoteDisplay({ note, onDelete, onSelect, onPin, className
 
         {/* 3. Audio & Voice Previews */}
         {voices.length > 0 && (
-          <div className="note-media-preview-row">
+          <div className="note-media-preview-row" style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'stretch' }}>
             {voices.slice(0, 2).map((voice) => {
               const src = voice.voice_url || voice.url || voice.audio_url || voice.file_url
               const key = voice.voice_id || voice.id || src
               return (
-                <div key={key} className="note-preview-media" onClick={(e) => e.stopPropagation()}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}>
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                  </svg>
-                  <audio controls src={src} className="note-preview-audio-element" />
+                <div key={key} className="note-voice-card-preview" onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                  <div className="note-preview-media" style={{ width: '100%', boxSizing: 'border-box' }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginRight: '4px' }}>
+                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    </svg>
+                    <audio controls src={src} className="note-preview-audio-element" style={{ flexGrow: 1 }} />
+                  </div>
+                  {voice.transcript && (
+                    <div className="note-voice-card-transcript" style={{ fontSize: '11px', color: 'var(--subtle)', fontStyle: 'italic', marginTop: '2px', paddingLeft: '8px', borderLeft: '1px solid var(--primary-color, #5271ff)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={voice.transcript}>
+                      “{voice.transcript}”
+                    </div>
+                  )}
                 </div>
               )
             })}
             {voices.length > 2 && (
-              <div className="note-media-more">+{voices.length - 2}</div>
+              <div className="note-media-more" style={{ alignSelf: 'flex-start' }}>+{voices.length - 2}</div>
             )}
           </div>
         )}

@@ -1,4 +1,4 @@
-from groq import Groq
+from groq import AsyncGroq
 from app.core.config import settings
 
 
@@ -78,7 +78,7 @@ REWRITE_THEMES = {
 
 class AIService:
     def __init__(self):
-        self.client = Groq(api_key=settings.groq_api_key) if settings.groq_api_key else None
+        self.client = AsyncGroq(api_key=settings.groq_api_key) if settings.groq_api_key else None
         self.model = "llama-3.3-70b-versatile"
 
     def is_available(self) -> bool:
@@ -104,7 +104,7 @@ Content: {note_body}
 
 Summary:"""
 
-        response = self.client.chat.completions.create(
+        response = await self.client.chat.completions.create(
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=1000,
@@ -127,7 +127,7 @@ Instruction: {prompt}
 
 Rewritten Content:"""
 
-        response = self.client.chat.completions.create(
+        response = await self.client.chat.completions.create(
             model=self.model,
             messages=[{"role": "user", "content": full_prompt}],
             max_tokens=2000,
@@ -141,7 +141,7 @@ Rewritten Content:"""
             raise ValueError("Groq API key not configured")
 
         with open(audio_file_path, "rb") as f:
-            transcription = self.client.audio.transcriptions.create(
+            transcription = await self.client.audio.transcriptions.create(
                 file=f,
                 model="whisper-large-v3",
                 response_format="text",

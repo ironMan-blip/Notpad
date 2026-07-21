@@ -16,6 +16,9 @@ function htmlToBody(html = '') {
     if (node.nodeName === 'IMG' || node.nodeName === 'AUDIO') {
       return node.dataset.placeholder ? node.dataset.placeholder : ''
     }
+    if (node.classList && node.classList.contains('voice-transcript')) {
+      return ''
+    }
     const children = Array.from(node.childNodes).map(nodeToText).join('')
     if (['DIV', 'P', 'LI', 'BLOCKQUOTE', 'PRE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(node.nodeName)) {
       return `${children}\n`
