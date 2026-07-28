@@ -7,10 +7,15 @@ from fastapi import HTTPException
 from app.core.config import settings
 
 def parse_uploadthing_token(token: str) -> Tuple[str, str]:
-    """Decodes the UPLOADTHING_TOKEN base64 string to extract apiKey and appId."""
+    """Decodes the UPLOADTHING_TOKEN base64 string to extract apiKey and appId.
+    If the token starts with 'sk_', returns it directly as apiKey with appId=None.
+    """
+    token_stripped = token.strip()
+    if token_stripped.startswith("sk_"):
+        return token_stripped, None
+
     try:
         # Strip whitespace and pad base64 token if needed
-        token_stripped = token.strip()
         padding = len(token_stripped) % 4
         if padding:
             token_stripped += "=" * (4 - padding)
@@ -18,14 +23,12 @@ def parse_uploadthing_token(token: str) -> Tuple[str, str]:
         data = json.loads(decoded)
         apiKey = data.get("apiKey")
         appId = data.get("appId")
-        if not apiKey or not appId:
-            raise ValueError("Token must contain apiKey and appId fields")
+        if not apiKey:
+            raise ValueError("Token must contain apiKey field")
         return apiKey, appId
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to decode UPLOADTHING_TOKEN: {str(e)}"
-        )
+        # Fallback to returning token directly if base64 decoding fails
+        return token_stripped, None
 
 def get_presigned_url_sync(file_name: str, file_type: str, file_size: int) -> Dict[str, Any]:
     """Requests a presigned upload URL from UploadThing API (synchronous)."""
@@ -40,20 +43,21 @@ def get_presigned_url_sync(file_name: str, file_type: str, file_size: int) -> Di
 
     url = "https://api.uploadthing.com/v7/prepareUpload"
     headers = {
-        "x-uploadthing-api-key": apiKey,
         "content-type": "application/json",
-        "authorization": f"Bearer {token}"
+        "x-uploadthing-version": "7.7.4"
     }
+    
+    if apiKey:
+        headers["x-uploadthing-api-key"] = apiKey
+    
+    # If the token is a unified token (not raw API key starting with sk_), pass authorization header
+    if not token.strip().startswith("sk_"):
+        headers["authorization"] = f"Bearer {token.strip()}"
 
     payload = {
-        "files": [
-            {
-                "name": file_name,
-                "type": file_type,
-                "size": file_size,
-            }
-        ],
-        "contentDisposition": "inline",
+        "fileName": file_name,
+        "fileType": file_type,
+        "fileSize": file_size,
         "acl": "public-read"
     }
 
@@ -66,22 +70,43 @@ def get_presigned_url_sync(file_name: str, file_type: str, file_size: int) -> Di
         )
         with urllib.request.urlopen(req, timeout=10) as response:
             res_data = json.loads(response.read().decode("utf-8"))
-            if not isinstance(res_data, list) or len(res_data) == 0:
+            
+            # The prepareUpload v7 response is a dictionary containing 'url' and 'key'
+            if not isinstance(res_data, dict) or "url" not in res_data:
                 raise HTTPException(
                     status_code=500,
                     detail="Invalid response format from UploadThing API"
                 )
             
-            # The prepareUpload response is a list matching the input files list
-            file_info = res_data[0]
+            key = res_data.get("key") or res_data.get("fileKey")
+            if not key:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to retrieve key from UploadThing prepareUpload response."
+                )
+            
+            # If appId was not decoded from the base64 token, extract it from the URL's query parameters
+            if not appId:
+                from urllib.parse import urlparse, parse_qs
+                parsed_url = urlparse(res_data["url"])
+                query_params = parse_qs(parsed_url.query)
+                ut_identifiers = query_params.get("x-ut-identifier")
+                if ut_identifiers:
+                    appId = ut_identifiers[0]
+            
+            if not appId:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Could not resolve appId from UPLOADTHING_TOKEN or upload response."
+                )
             
             # Construct standard CDN URL
-            cdn_url = f"https://{appId}.ufs.sh/f/{file_info['fileKey']}"
+            cdn_url = f"https://{appId}.ufs.sh/f/{key}"
             
             return {
-                "url": file_info.get("url"),
-                "fields": file_info.get("fields", {}),
-                "fileKey": file_info.get("fileKey"),
+                "url": res_data.get("url"),
+                "fields": {},
+                "fileKey": key,
                 "cdnUrl": cdn_url
             }
     except urllib.error.HTTPError as e:

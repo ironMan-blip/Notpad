@@ -195,15 +195,12 @@ export const apiClient = {
     const presigned = await presignedResponse.json();
 
     // 2. Upload file directly to UploadThing storage provider
-    const uploadFormData = new FormData();
-    Object.entries(presigned.fields).forEach(([key, val]) => {
-      uploadFormData.append(key, val);
-    });
-    uploadFormData.append('file', file);
-
     const uploadResponse = await fetch(presigned.url, {
-      method: 'POST',
-      body: uploadFormData,
+      method: 'PUT',
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+      },
+      body: file,
     });
 
     if (!uploadResponse.ok) {
