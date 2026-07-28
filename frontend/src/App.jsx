@@ -130,11 +130,6 @@ export default function App() {
 	const pinnedNotes = filteredNotes.filter(n => n.is_pinned)
 	const otherNotes = filteredNotes.filter(n => !n.is_pinned)
 
-	const getNoteGroupName = (noteId) => {
-		const noteGroup = groups.find(g => g.note_ids?.includes(noteId))
-		return noteGroup ? noteGroup.name : null
-	}
-
 	const filteredGroups = activeTab === 'groups' && search.trim()
 		? groups.filter(g => g.name.toLowerCase().includes(search.toLowerCase()))
 		: groups
@@ -306,7 +301,6 @@ export default function App() {
 													<NoteDisplay
 														key={note.note_id}
 														note={note}
-														groupName={getNoteGroupName(note.note_id)}
 														onDelete={() => handleDelete(note)}
 														onPin={() => handlePinToggle(note)}
 														onSelect={() => {
@@ -333,7 +327,6 @@ export default function App() {
 															<NoteDisplay
 																key={note.note_id}
 																note={note}
-																groupName={getNoteGroupName(note.note_id)}
 																onDelete={() => handleDelete(note)}
 																onPin={() => handlePinToggle(note)}
 																onSelect={() => {
@@ -361,7 +354,6 @@ export default function App() {
 												<NoteDisplay
 													key={note.note_id}
 													note={note}
-													groupName={getNoteGroupName(note.note_id)}
 													onDelete={() => handleDelete(note)}
 													onPin={() => handlePinToggle(note)}
 													onSelect={() => {
