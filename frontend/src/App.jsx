@@ -16,8 +16,30 @@ import { apiClient } from './services/api'
 export default function App() {
 	const { user } = useAuth()
 	const [activeTab, setActiveTab] = useState('notes')
-	const [collapsed, setCollapsed] = useState(false)
+	const [collapsed, setCollapsed] = useState(() => {
+		if (typeof window !== 'undefined') {
+			return window.matchMedia('(max-width: 768px)').matches
+		}
+		return true
+	})
+	const [isMobile, setIsMobile] = useState(() => {
+		if (typeof window !== 'undefined') {
+			return window.matchMedia('(max-width: 768px)').matches
+		}
+		return false
+	})
 	const [selected, setSelected] = useState(null)
+
+	// Responsive sidebar handling
+	useEffect(() => {
+		const mediaQuery = window.matchMedia('(max-width: 768px)')
+		const handleMediaQueryChange = (e) => {
+			setIsMobile(e.matches)
+			setCollapsed(e.matches)
+		}
+		mediaQuery.addEventListener('change', handleMediaQueryChange)
+		return () => mediaQuery.removeEventListener('change', handleMediaQueryChange)
+	}, [])
 	const [groups, setGroups] = useState([])
 	const [notes, setNotes] = useState([])
 	const [search, setSearch] = useState('')
@@ -206,6 +228,14 @@ export default function App() {
 						}
 					}}
 				/>
+
+				{!collapsed && isMobile && (
+					<div
+						className="sidebar-backdrop"
+						onClick={() => setCollapsed(true)}
+						role="presentation"
+					/>
+				)}
 
 				<main className="main">
 					{activeTab === 'notes' ? (

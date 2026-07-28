@@ -59,7 +59,7 @@ export default function Navbar({ search, setSearch, setIsOpen, setEditing, colla
               <line x1="9" y1="18" x2="15" y2="18" />
               <line x1="10" y1="22" x2="14" y2="22" />
             </svg>
-            <h2>Notpad</h2>
+            <h2 className="logo-text">Notpad</h2>
           </div>
         </div>
 
@@ -68,20 +68,20 @@ export default function Navbar({ search, setSearch, setIsOpen, setEditing, colla
         </div>
 
         <div className="topbar-actions">
-          <button className="btn primary" type="button" onClick={handleNewNote} style={{ gap: '6px' }}>
+          <button className="btn primary" type="button" onClick={handleNewNote} style={{ gap: '6px' }} title="Create new note">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
-            Create
+            <span className="btn-text">Create</span>
           </button>
-          <button className="btn ghost" type="button" onClick={logout} style={{ gap: '6px' }}>
+          <button className="btn ghost" type="button" onClick={logout} style={{ gap: '6px' }} title="Logout">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
               <polyline points="16 17 21 12 16 7"></polyline>
               <line x1="21" y1="12" x2="9" y2="12"></line>
             </svg>
-            Logout
+            <span className="btn-text">Logout</span>
           </button>
         </div>
       </div>

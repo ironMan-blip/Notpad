@@ -962,7 +962,7 @@ export default function NoteModal({ initial, onCancel, onSave }) {
                 <div className="spin" style={{ width: '32px', height: '32px', border: '3px solid var(--border-color, #e0e0e0)', borderTopColor: 'var(--primary, #1976d2)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
               </div>
             ) : (
-              <div style={{ display: 'flex', flex: 1, overflow: 'hidden', gap: '16px' }}>
+              <div className="rewrite-preview-container">
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                   <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary, #666)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Original</div>
                   <div style={{ flex: 1, background: 'var(--bg-secondary, #fafafa)', border: '1px solid var(--border-color, #e0e0e0)', borderRadius: '8px', padding: '16px', overflow: 'auto', fontSize: '14px', lineHeight: '1.6', color: 'var(--text-primary, #333)', whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>
