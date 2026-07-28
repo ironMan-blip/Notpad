@@ -53,6 +53,16 @@ export default function GroupManager({ group, notes, onClose, onUpdate, onDelete
     }
   }
 
+  function cleanPreviewText(body = '') {
+    return body
+      .replace(/\[IMG:[^\]]*\]/g, '')
+      .replace(/\[AUD:[^\]]*\]/g, '')
+      .replaceAll('[', '')
+      .replaceAll(']', '')
+      .trim()
+      .substring(0, 40)
+  }
+
   const unselectedNotes = notes.filter(n => !selectedNotes.includes(n.note_id))
 
   return (
@@ -94,7 +104,7 @@ export default function GroupManager({ group, notes, onClose, onUpdate, onDelete
                   <div key={noteId} className="group-note-item">
                     <div className="group-note-info">
                       <div className="group-note-title">{note.note_title}</div>
-                      <div className="group-note-preview">{note.note_body.substring(0, 40)}</div>
+                      <div className="group-note-preview">{cleanPreviewText(note.note_body)}</div>
                     </div>
                     <button
                       className="btn danger"
@@ -117,7 +127,7 @@ export default function GroupManager({ group, notes, onClose, onUpdate, onDelete
                   <div key={note.note_id} className="group-note-item">
                     <div className="group-note-info">
                       <div className="group-note-title">{note.note_title}</div>
-                      <div className="group-note-preview">{note.note_body.substring(0, 40)}</div>
+                      <div className="group-note-preview">{cleanPreviewText(note.note_body)}</div>
                     </div>
                     <button
                       className="btn secondary"

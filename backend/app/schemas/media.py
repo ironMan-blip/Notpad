@@ -11,6 +11,7 @@ class Voice(BaseModel):
     note_id: str
     user_id: str
     voice_url: str
+    index: int
     transcript: Optional[str] = None
 
     @field_validator("voice_id", "note_id", "user_id")
@@ -35,6 +36,7 @@ class Picture(BaseModel):
     note_id: str
     user_id: str
     picture_url: str
+    index: int
     file_hash: Optional[str] = None
 
     @field_validator("picture_id", "note_id", "user_id")
@@ -52,3 +54,4 @@ class Picture(BaseModel):
         if ext.lower() not in allowed:
             raise ValueError("picture_url must have a valid image extension")
         return value
+

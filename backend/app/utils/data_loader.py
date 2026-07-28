@@ -57,6 +57,7 @@ def _to_schema(db_obj: Any) -> Any:
             note_id=db_obj.note_id,
             user_id=db_obj.user_id,
             picture_url=db_obj.picture_url,
+            index=db_obj.index,
             file_hash=db_obj.file_hash
         )
     elif isinstance(db_obj, DBVoice):
@@ -65,6 +66,7 @@ def _to_schema(db_obj: Any) -> Any:
             note_id=db_obj.note_id,
             user_id=db_obj.user_id,
             voice_url=db_obj.voice_url,
+            index=db_obj.index,
             transcript=db_obj.transcript
         )
     elif isinstance(db_obj, DBGroup):
