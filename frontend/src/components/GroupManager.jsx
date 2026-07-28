@@ -54,13 +54,19 @@ export default function GroupManager({ group, notes, onClose, onUpdate, onDelete
   }
 
   function cleanPreviewText(body = '') {
-    return body
+    if (!body) return ''
+    const cleanBody = body
       .replace(/\[IMG:[^\]]*\]/g, '')
       .replace(/\[AUD:[^\]]*\]/g, '')
       .replaceAll('[', '')
       .replaceAll(']', '')
       .trim()
-      .substring(0, 40)
+    if (!cleanBody) return ''
+    const words = cleanBody.split(/\s+/)
+    if (words.length > 5) {
+      return `${words.slice(0, 5).join(' ')}...`
+    }
+    return cleanBody
   }
 
   const unselectedNotes = notes.filter(n => !selectedNotes.includes(n.note_id))

@@ -1,7 +1,7 @@
 export default function NoteDisplay({ note, onDelete, onSelect, onPin, className = '' }) {
   if (!note) return null
 
-  function renderBodyPreview(body = '', maxChars = 140) {
+  function renderBodyPreview(body = '') {
     if (!body) return ''
 
     const cleanBody = body
@@ -11,22 +11,19 @@ export default function NoteDisplay({ note, onDelete, onSelect, onPin, className
       .replaceAll(']', '')
       .trim()
 
-    if (cleanBody.length > maxChars) {
-      return `${cleanBody.slice(0, maxChars).trimEnd()}...`
+    if (!cleanBody) return ''
+
+    const words = cleanBody.split(/\s+/)
+    if (words.length > 5) {
+      return `${words.slice(0, 5).join(' ')}...`
     }
     return cleanBody
   }
 
-  // Get first image for the card banner
   const images = Array.isArray(note.mediaImages) ? note.mediaImages : []
   const voices = Array.isArray(note.mediaVoices) ? note.mediaVoices : []
   const hasImages = images.length > 0
-  const firstImageSrc = hasImages
-    ? (images[0].picture_url || images[0].image_url || images[0].url)
-    : null
-
-  // Rest of images for thumbnail list inside card
-  const otherImages = hasImages ? images.slice(1) : []
+  const hasVoices = voices.length > 0
 
   return (
     <div
@@ -41,73 +38,14 @@ export default function NoteDisplay({ note, onDelete, onSelect, onPin, className
         }
       } : undefined}
     >
-      {/* 1. Full-bleed banner image at the top of the card (Google Keep style) */}
-      {firstImageSrc && (
-        <div className="note-card-image-wrapper">
-          <img
-            src={firstImageSrc}
-            alt="Note attachment banner"
-            className="note-card-image"
-            loading="lazy"
-          />
-        </div>
-      )}
-
-      {/* 2. Note Text Content */}
+      {/* Note Text Content */}
       <div className="note-body">
         {note.note_title && (
           <strong className="note-title">{note.note_title}</strong>
         )}
         <p className="note-text">
-          {renderBodyPreview(note.note_body || '') || (firstImageSrc || voices.length > 0 ? '' : 'Empty note')}
+          {renderBodyPreview(note.note_body || '') || (hasImages || hasVoices ? '' : 'Empty note')}
         </p>
-
-        {/* 3. Audio & Voice Previews */}
-        {voices.length > 0 && (
-          <div className="note-media-preview-row" style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'stretch' }}>
-            {voices.slice(0, 2).map((voice) => {
-              const src = voice.voice_url || voice.url || voice.audio_url || voice.file_url
-              const key = voice.voice_id || voice.id || src
-              return (
-                <div key={key} className="note-voice-card-preview" onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
-                  <div className="note-preview-media" style={{ width: '100%', boxSizing: 'border-box' }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginRight: '4px' }}>
-                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                    </svg>
-                    <audio controls src={src} className="note-preview-audio-element" style={{ flexGrow: 1 }} />
-                  </div>
-                  {voice.transcript && (
-                    <div className="note-voice-card-transcript" style={{ fontSize: '11px', color: 'var(--subtle)', fontStyle: 'italic', marginTop: '2px', paddingLeft: '8px', borderLeft: '1px solid var(--primary-color, #5271ff)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={voice.transcript}>
-                      “{voice.transcript}”
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-            {voices.length > 2 && (
-              <div className="note-media-more" style={{ alignSelf: 'flex-start' }}>+{voices.length - 2}</div>
-            )}
-          </div>
-        )}
-
-        {/* 4. Other Images thumbnail list */}
-        {otherImages.length > 0 && (
-          <div className="note-media-preview-row">
-            {otherImages.slice(0, 3).map((image) => {
-              const src = image.picture_url || image.image_url || image.url
-              const key = image.picture_id || image.id || src
-              return (
-                <div key={key} className="note-preview-image-wrapper" onClick={(e) => e.stopPropagation()}>
-                  <img src={src} alt="Thumbnail preview" className="note-preview-image note-preview-media" />
-                </div>
-              )
-            })}
-            {otherImages.length > 3 && (
-              <div className="note-media-more">+{otherImages.length - 3}</div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* 5. Keep-style Action Icons (shown on hover) */}
