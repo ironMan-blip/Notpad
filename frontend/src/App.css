@@ -433,8 +433,8 @@ textarea {
 	cursor: pointer;
 	transition: box-shadow 150ms ease, border-color 150ms ease;
 	overflow: hidden;
-	height: auto;
-	min-height: 120px;
+	height: 130px;
+	box-sizing: border-box;
 }
 
 .note:hover {
@@ -478,13 +478,10 @@ textarea {
 	line-height: 1.5;
 	color: var(--text);
 	margin: 0;
-	word-wrap: break-word;
-	white-space: pre-wrap;
-	display: -webkit-box;
-	-webkit-line-clamp: 8;
-	line-clamp: 8;
-	-webkit-box-orient: vertical;
+	white-space: nowrap;
 	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 75%;
 }
 
 /* Note Action Icons (Hidden by default, shown on hover) */

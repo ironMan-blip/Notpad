@@ -61,11 +61,6 @@ export default function GroupManager({ group, notes, onClose, onUpdate, onDelete
       .replaceAll('[', '')
       .replaceAll(']', '')
       .trim()
-    if (!cleanBody) return ''
-    const words = cleanBody.split(/\s+/)
-    if (words.length > 5) {
-      return `${words.slice(0, 5).join(' ')}...`
-    }
     return cleanBody
   }
 

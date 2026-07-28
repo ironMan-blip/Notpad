@@ -11,12 +11,6 @@ export default function NoteDisplay({ note, onDelete, onSelect, onPin, className
       .replaceAll(']', '')
       .trim()
 
-    if (!cleanBody) return ''
-
-    const words = cleanBody.split(/\s+/)
-    if (words.length > 5) {
-      return `${words.slice(0, 5).join(' ')}...`
-    }
     return cleanBody
   }
 
