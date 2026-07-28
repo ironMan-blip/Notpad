@@ -40,6 +40,14 @@ export default function App() {
 		mediaQuery.addEventListener('change', handleMediaQueryChange)
 		return () => mediaQuery.removeEventListener('change', handleMediaQueryChange)
 	}, [])
+
+	const handleSetCollapsed = (val) => {
+		if (window.matchMedia('(max-width: 768px)').matches) {
+			setCollapsed(true)
+		} else {
+			setCollapsed(val)
+		}
+	}
 	const [groups, setGroups] = useState([])
 	const [notes, setNotes] = useState([])
 	const [search, setSearch] = useState('')
@@ -208,7 +216,7 @@ export default function App() {
 				setIsOpen={setIsOpen}
 				setEditing={setEditing}
 				collapsed={collapsed}
-				setCollapsed={setCollapsed}
+				setCollapsed={handleSetCollapsed}
 			/>
 
 			{error && <div className="error-banner">{error}</div>}

@@ -1180,21 +1180,20 @@ textarea {
 }
 
 @media (max-width: 768px) {
+	.sidebar-toggle-btn {
+		display: none !important;
+	}
+
 	.sidebar {
-		position: fixed;
-		top: 64px;
-		left: 0;
-		bottom: 0;
-		z-index: 150;
-		width: 280px;
-		box-shadow: var(--shadow-active);
-		transform: translateX(0);
-		transition: transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
+		display: none !important;
 	}
 	
 	.sidebar.collapsed {
-		transform: translateX(-100%);
-		width: 280px;
+		display: none !important;
+	}
+
+	.sidebar-backdrop {
+		display: none !important;
 	}
 
 	.main {

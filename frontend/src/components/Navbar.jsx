@@ -33,7 +33,7 @@ export default function Navbar({ search, setSearch, setIsOpen, setEditing, colla
         <div className="topbar-left">
           <button
             type="button"
-            className="icon-btn"
+            className="icon-btn sidebar-toggle-btn"
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             onClick={() => setCollapsed(!collapsed)}
             aria-pressed={collapsed}
