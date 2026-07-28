@@ -172,26 +172,65 @@ export const apiClient = {
   },
 
   async uploadFile(noteId, file, fileType) {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const headers = {
-      'X-API-Key': API_KEY,
-    };
-
-    const endpoint = fileType === 'image' ? `/notes/${noteId}/images` : `/notes/${noteId}/voices`;
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    // 1. Request presigned upload URL from backend
+    const presignedResponse = await fetch(`${API_BASE_URL}/notes/${noteId}/presigned`, {
       method: 'POST',
       credentials: 'include',
-      headers,
-      body: formData,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': API_KEY,
+      },
+      body: JSON.stringify({
+        file_name: file.name,
+        file_type: file.type || 'application/octet-stream',
+        file_size: file.size,
+      }),
     });
 
-    const data = await response.json();
+    if (!presignedResponse.ok) {
+      const errorData = await presignedResponse.json();
+      throw new Error(errorData.detail || 'Failed to generate upload credentials.');
+    }
 
-    if (!response.ok) {
-      const error = new Error(data.detail || 'Upload failed');
-      error.status = response.status;
+    const presigned = await presignedResponse.json();
+
+    // 2. Upload file directly to UploadThing storage provider
+    const uploadFormData = new FormData();
+    Object.entries(presigned.fields).forEach(([key, val]) => {
+      uploadFormData.append(key, val);
+    });
+    uploadFormData.append('file', file);
+
+    const uploadResponse = await fetch(presigned.url, {
+      method: 'POST',
+      body: uploadFormData,
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error('Failed to upload file to storage provider.');
+    }
+
+    // 3. Register the upload with the backend to associate it with the note
+    const registerEndpoint = fileType === 'image' ? `/notes/${noteId}/images/register` : `/notes/${noteId}/voices/register`;
+    const registerResponse = await fetch(`${API_BASE_URL}${registerEndpoint}`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': API_KEY,
+      },
+      body: JSON.stringify({
+        url: presigned.cdnUrl,
+        file_name: file.name,
+        file_size: file.size,
+      }),
+    });
+
+    const data = await registerResponse.json();
+
+    if (!registerResponse.ok) {
+      const error = new Error(data.detail || 'Registration failed');
+      error.status = registerResponse.status;
       error.data = data;
       throw error;
     }

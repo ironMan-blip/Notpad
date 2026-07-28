@@ -90,6 +90,10 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="GROQ_API_KEY"
     )
+    uploadthing_token: Optional[str] = Field(
+        default=None,
+        validation_alias="UPLOADTHING_TOKEN"
+    )
 
 
 settings = Settings()

@@ -7,6 +7,9 @@ import uuid
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
+import tempfile
+import urllib.request
+from pydantic import BaseModel
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 
@@ -17,6 +20,23 @@ from app.utils.database import DBUser, DBNote, DBPicture, DBVoice
 from app.utils.dependencies import require_user_id, verify_api_key
 from app.schemas.note import Note, NoteCreate, NoteUpdate, MediaReference
 from app.utils.limiter import limiter
+from app.utils.uploadthing import get_presigned_url_sync
+
+class PresignedUrlRequest(BaseModel):
+    file_name: str
+    file_type: str
+    file_size: int
+
+class RegisterImageRequest(BaseModel):
+    url: str
+    file_name: str
+    file_size: int
+    file_hash: Optional[str] = None
+
+class RegisterVoiceRequest(BaseModel):
+    url: str
+    file_name: str
+    file_size: int
 
 router = APIRouter(prefix="/notes", tags=["notes"], redirect_slashes=False, dependencies=[Depends(verify_api_key)])
 UPLOADS_DIR = Path(__file__).resolve().parent.parent / "uploads"
@@ -538,3 +558,169 @@ def delete_note_voice(request: Request, note_id: str, voice_id: str, user_id: st
     dl.update_record(DBNote, filter_kwargs={"note_id": note_id, "user_id": user_id}, update_kwargs={"note_body": new_body})
     updated_note = dl.get_record(DBNote, note_id=note_id, user_id=user_id)
     return {"message": "Voice deleted successfully", "note": updated_note}
+
+
+async def _download_temp_audio(url: str) -> str:
+    """Downloads remote audio file to a temporary file for transcription."""
+    suffix = ".webm"
+    if ".wav" in url:
+        suffix = ".wav"
+    elif ".mp3" in url:
+        suffix = ".mp3"
+    elif ".webm" in url:
+        suffix = ".webm"
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+        temp_path = temp_file.name
+
+    def _download():
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "FastAPI-Server"}
+        )
+        with urllib.request.urlopen(req) as response:
+            with open(temp_path, "wb") as f:
+                f.write(response.read())
+
+    await anyio.to_thread.run_sync(_download)
+    return temp_path
+
+
+@router.post("/{note_id}/presigned")
+@limiter.limit("60/minute")
+async def generate_presigned_url(
+    note_id: str,
+    payload: PresignedUrlRequest,
+    user_id: str = Depends(require_user_id)
+):
+    """Generate a presigned upload URL for UploadThing."""
+    note = await anyio.to_thread.run_sync(lambda: dl.get_record(DBNote, note_id=note_id, user_id=user_id))
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+        
+    res = await anyio.to_thread.run_sync(
+        get_presigned_url_sync, 
+        payload.file_name, 
+        payload.file_type, 
+        payload.file_size
+    )
+    return res
+
+
+@router.post("/{note_id}/images/register")
+@limiter.limit("30/minute")
+async def register_note_image(
+    request: Request,
+    note_id: str,
+    payload: RegisterImageRequest,
+    user_id: str = Depends(require_user_id)
+):
+    """Register an image uploaded to UploadThing and associate it with the note."""
+    note = await anyio.to_thread.run_sync(lambda: dl.get_record(DBNote, note_id=note_id, user_id=user_id))
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    image_url = payload.url
+    file_hash = payload.file_hash or hashlib.sha256(image_url.encode('utf-8')).hexdigest()
+
+    existing = await anyio.to_thread.run_sync(lambda: dl.get_record(DBPicture, note_id=note_id, file_hash=file_hash))
+
+    if existing:
+        picture = existing
+        next_index = None
+        for ref in note.images:
+            if ref.id == picture.picture_id:
+                next_index = ref.index
+                break
+        if next_index is None:
+            next_index = _get_next_image_index(note)
+    else:
+        next_index = _get_next_image_index(note)
+        picture = await anyio.to_thread.run_sync(
+            lambda: dl.create_record(
+                DBPicture,
+                picture_id=str(uuid.uuid4()),
+                note_id=note_id,
+                user_id=user_id,
+                picture_url=image_url,
+                file_hash=file_hash,
+                index=next_index
+            )
+        )
+        placeholder = _make_media_placeholder("image", next_index)
+        new_body = f"{note.note_body} {placeholder}" if note.note_body else placeholder
+        await anyio.to_thread.run_sync(
+            lambda: dl.update_record(
+                DBNote, filter_kwargs={"note_id": note_id, "user_id": user_id}, update_kwargs={"note_body": new_body}
+            )
+        )
+
+    placeholder = _make_media_placeholder("image", next_index)
+    updated_note = await anyio.to_thread.run_sync(lambda: dl.get_record(DBNote, note_id=note_id, user_id=user_id))
+    return {
+        "message": "Image registered successfully" if not existing else "Image already exists in this note",
+        "image": picture,
+        "placeholder": placeholder,
+        "note": updated_note,
+    }
+
+
+@router.post("/{note_id}/voices/register")
+@limiter.limit("30/minute")
+async def register_note_voice(
+    request: Request,
+    note_id: str,
+    payload: RegisterVoiceRequest,
+    user_id: str = Depends(require_user_id)
+):
+    """Register a voice recording uploaded to UploadThing, transcribe it, and associate it with the note."""
+    note = await anyio.to_thread.run_sync(lambda: dl.get_record(DBNote, note_id=note_id, user_id=user_id))
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    voice_url = payload.url
+
+    temp_path = None
+    transcript = None
+    if ai_service.is_available():
+        try:
+            temp_path = await _download_temp_audio(voice_url)
+            transcript = await ai_service.transcribe_audio(str(temp_path))
+        except Exception as e:
+            print(f"Error during audio transcription: {e}")
+        finally:
+            if temp_path:
+                try:
+                    Path(temp_path).unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+    next_index = _get_next_voice_index(note)
+    voice = await anyio.to_thread.run_sync(
+        lambda: dl.create_record(
+            DBVoice,
+            voice_id=str(uuid.uuid4()),
+            note_id=note_id,
+            user_id=user_id,
+            voice_url=voice_url,
+            index=next_index,
+            transcript=transcript
+        )
+    )
+
+    placeholder = _make_media_placeholder("audio", next_index)
+    new_body = f"{note.note_body} {placeholder}" if note.note_body else placeholder
+    await anyio.to_thread.run_sync(
+        lambda: dl.update_record(
+            DBNote, filter_kwargs={"note_id": note_id, "user_id": user_id}, update_kwargs={"note_body": new_body}
+        )
+    )
+
+    updated_note = await anyio.to_thread.run_sync(lambda: dl.get_record(DBNote, note_id=note_id, user_id=user_id))
+    return {
+        "message": "Voice registered successfully",
+        "voice": voice,
+        "placeholder": placeholder,
+        "note": updated_note,
+        "transcript": transcript,
+    }
