@@ -293,24 +293,24 @@ def update_note(request: Request, note_id: str, note: NoteUpdate, user_id: str =
 
     if orphaned_image_refs:
         for ref in orphaned_image_refs:
-            picture = dl.get_record(DBPicture, picture_id=ref.id, user_id=user_id)
+            picture = dl.get_record(DBPicture, picture_id=ref.picture_id, user_id=user_id)
             if picture:
                 picture_path = urlparse(picture.picture_url).path
                 image_file = IMAGE_UPLOAD_DIR / Path(picture_path).name
                 image_file.unlink(missing_ok=True)
-                dl.delete_record(DBPicture, picture_id=ref.id, user_id=user_id)
+                dl.delete_record(DBPicture, picture_id=ref.picture_id, user_id=user_id)
 
     current_voice_refs = {ref.index: ref for ref in existing.voices}
     orphaned_voice_refs = [ref for idx, ref in current_voice_refs.items() if idx not in referenced_voice_indices]
 
     if orphaned_voice_refs:
         for ref in orphaned_voice_refs:
-            voice = dl.get_record(DBVoice, voice_id=ref.id, user_id=user_id)
+            voice = dl.get_record(DBVoice, voice_id=ref.voice_id, user_id=user_id)
             if voice:
                 voice_path = urlparse(voice.voice_url).path
                 voice_file = VOICE_UPLOAD_DIR / Path(voice_path).name
                 voice_file.unlink(missing_ok=True)
-                dl.delete_record(DBVoice, voice_id=ref.id, user_id=user_id)
+                dl.delete_record(DBVoice, voice_id=ref.voice_id, user_id=user_id)
 
     updated = dl.update_record(
         DBNote,
@@ -360,7 +360,7 @@ async def upload_note_image(request: Request, note_id: str, file: UploadFile = F
         await anyio.to_thread.run_sync(lambda: (IMAGE_UPLOAD_DIR / filename).unlink(missing_ok=True))
         next_index = None
         for ref in note.images:
-            if ref.id == picture.picture_id:
+            if ref.picture_id == picture.picture_id:
                 next_index = ref.index
                 break
         if next_index is None:
@@ -514,7 +514,7 @@ def delete_note_image(request: Request, note_id: str, image_id: str, user_id: st
 
     removed_index = None
     for ref in note.images:
-        if ref.id == image_id:
+        if ref.picture_id == image_id:
             removed_index = ref.index
             break
 
@@ -547,7 +547,7 @@ def delete_note_voice(request: Request, note_id: str, voice_id: str, user_id: st
 
     removed_index = None
     for ref in note.voices:
-        if ref.id == voice_id:
+        if ref.voice_id == voice_id:
             removed_index = ref.index
             break
 
@@ -630,7 +630,7 @@ async def register_note_image(
         picture = existing
         next_index = None
         for ref in note.images:
-            if ref.id == picture.picture_id:
+            if ref.picture_id == picture.picture_id:
                 next_index = ref.index
                 break
         if next_index is None:

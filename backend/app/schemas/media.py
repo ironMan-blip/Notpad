@@ -23,6 +23,8 @@ class Voice(BaseModel):
     @field_validator("voice_url")
     @classmethod
     def validate_voice_extension(cls, value: str) -> str:
+        if ".ufs.sh/f/" in value or "utfs.io/f/" in value:
+            return value
         allowed = {".mp3", ".wav", ".ogg", ".m4a", ".flac", ".aac", ".amr", ".webm"}
         path = urlparse(value).path
         _, ext = os.path.splitext(path)
@@ -48,6 +50,8 @@ class Picture(BaseModel):
     @field_validator("picture_url")
     @classmethod
     def validate_picture_extension(cls, value: str) -> str:
+        if ".ufs.sh/f/" in value or "utfs.io/f/" in value:
+            return value
         allowed = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff"}
         path = urlparse(value).path
         _, ext = os.path.splitext(path)
