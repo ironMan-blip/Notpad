@@ -1,7 +1,7 @@
 import SearchNotes from './SearchNotes'
 import { useAuth } from '../context/AuthContext'
 
-export default function Navbar({ search, setSearch, setIsOpen, setEditing, collapsed, setCollapsed }) {
+export default function Navbar({ activeTab, search, setSearch, setIsOpen, setEditing, collapsed, setCollapsed }) {
   const { logout } = useAuth()
 
   function handleLogoClick() {
@@ -64,7 +64,11 @@ export default function Navbar({ search, setSearch, setIsOpen, setEditing, colla
         </div>
 
         <div className="topbar-center">
-          <SearchNotes value={search} onChange={setSearch} />
+          <SearchNotes
+            value={search}
+            onChange={setSearch}
+            placeholder={activeTab === 'groups' ? 'Search groups...' : 'Search notes...'}
+          />
         </div>
 
         <div className="topbar-actions">

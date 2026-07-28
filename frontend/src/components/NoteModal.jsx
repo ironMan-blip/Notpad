@@ -91,7 +91,11 @@ function htmlToBody(html = '') {
   return text.replace(/\n{2,}/g, '\n').trim()
 }
 
-export default function NoteModal({ initial, onCancel, onSave }) {
+export default function NoteModal({ initial, onCancel, onSave, groups }) {
+  const noteId = initial?.id || initial?.note_id
+  const noteGroup = groups?.find(g => g.note_ids?.includes(noteId))
+  const groupName = noteGroup?.name
+
   const [title, setTitle] = useState(initial?.title || initial?.note_title || '')
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -807,7 +811,12 @@ export default function NoteModal({ initial, onCancel, onSave }) {
           )}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', margin: '4px 0 8px 0' }}>
+          <div className="note-tags">
+            {groupName && (
+              <span className="note-group-pill">{groupName}</span>
+            )}
+          </div>
           <span className="char-count" style={{ alignSelf: 'center', marginTop: 0 }}>{bodyLength}/1000</span>
         </div>
 

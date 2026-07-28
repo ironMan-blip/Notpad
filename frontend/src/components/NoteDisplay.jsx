@@ -1,4 +1,4 @@
-export default function NoteDisplay({ note, onDelete, onSelect, onPin, className = '' }) {
+export default function NoteDisplay({ note, onDelete, onSelect, onPin, groupName, className = '' }) {
   if (!note) return null
 
   function renderBodyPreview(body = '') {
@@ -44,6 +44,11 @@ export default function NoteDisplay({ note, onDelete, onSelect, onPin, className
         <p className="note-text">
           {renderBodyPreview(note.note_body || '') || (hasImages || hasVoices ? '' : 'Empty note')}
         </p>
+        {groupName && (
+          <div className="note-tags">
+            <span className="note-group-pill">{groupName}</span>
+          </div>
+        )}
       </div>
 
       {/* 5. Keep-style Action Icons (shown on hover) */}

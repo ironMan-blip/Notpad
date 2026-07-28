@@ -21,7 +21,7 @@ export default function SearchNotes({ value, onChange, placeholder = 'Search...'
         value={value}
         onChange={handleChange}
         type="text"
-        aria-label="Search notes"
+        aria-label={placeholder}
       />
       {value && (
         <button

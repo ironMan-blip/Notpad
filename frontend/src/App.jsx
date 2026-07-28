@@ -73,10 +73,11 @@ export default function App() {
 			try {
 				setLoading(true)
 				setError(null)
-				const effectivePage = search.trim() ? 1 : currentPage
+				const notesSearchQuery = activeTab === 'notes' ? search : ''
+				const effectivePage = notesSearchQuery.trim() ? 1 : currentPage
 				const skip = (effectivePage - 1) * ITEMS_PER_PAGE
 				const [notesRes, groupsRes] = await Promise.all([
-					apiClient.getNotes(skip, ITEMS_PER_PAGE, search),
+					apiClient.getNotes(skip, ITEMS_PER_PAGE, notesSearchQuery),
 					apiClient.getGroups(),
 				])
 				let notesList = notesRes.notes || []
@@ -114,7 +115,7 @@ export default function App() {
 		}
 
 		fetchData()
-	}, [user, currentPage, search, reloadNotesKey, collapsed, ITEMS_PER_PAGE])
+	}, [user, currentPage, search, reloadNotesKey, collapsed, ITEMS_PER_PAGE, activeTab])
 
 	const handleSearchChange = (query) => {
 		setSearch(query)
@@ -128,6 +129,15 @@ export default function App() {
 
 	const pinnedNotes = filteredNotes.filter(n => n.is_pinned)
 	const otherNotes = filteredNotes.filter(n => !n.is_pinned)
+
+	const getNoteGroupName = (noteId) => {
+		const noteGroup = groups.find(g => g.note_ids?.includes(noteId))
+		return noteGroup ? noteGroup.name : null
+	}
+
+	const filteredGroups = activeTab === 'groups' && search.trim()
+		? groups.filter(g => g.name.toLowerCase().includes(search.toLowerCase()))
+		: groups
 
 	const modalVisible = isOpen || showGroupCreator || Boolean(editingGroup) || Boolean(deleteCandidate)
 	const showPagination = pagination && !search && !selectedGroup && pagination.total_pages > 1 && !modalVisible
@@ -176,6 +186,7 @@ export default function App() {
 	function handleTabChange(tab) {
 		setActiveTab(tab)
 		setSelected(null)
+		setSearch('')
 	}
 
 	function handleGroupCreated(newGroup) {
@@ -211,6 +222,7 @@ export default function App() {
 	return (
 		<div className="app">
 			<Navbar
+				activeTab={activeTab}
 				search={search}
 				setSearch={handleSearchChange}
 				setIsOpen={setIsOpen}
@@ -294,6 +306,7 @@ export default function App() {
 													<NoteDisplay
 														key={note.note_id}
 														note={note}
+														groupName={getNoteGroupName(note.note_id)}
 														onDelete={() => handleDelete(note)}
 														onPin={() => handlePinToggle(note)}
 														onSelect={() => {
@@ -320,6 +333,7 @@ export default function App() {
 															<NoteDisplay
 																key={note.note_id}
 																note={note}
+																groupName={getNoteGroupName(note.note_id)}
 																onDelete={() => handleDelete(note)}
 																onPin={() => handlePinToggle(note)}
 																onSelect={() => {
@@ -347,6 +361,7 @@ export default function App() {
 												<NoteDisplay
 													key={note.note_id}
 													note={note}
+													groupName={getNoteGroupName(note.note_id)}
 													onDelete={() => handleDelete(note)}
 													onPin={() => handlePinToggle(note)}
 													onSelect={() => {
@@ -384,18 +399,21 @@ export default function App() {
 									+ New Group
 								</button>
 							</div>
-							{groups.length === 0 ? (
+							{filteredGroups.length === 0 ? (
 								<div className="empty-state" style={{ marginTop: '40px' }}>
-									<h3>No groups yet</h3>
-									<p>Create a group to organize notes.</p>
+									<h3>{search.trim() ? 'No matching groups' : 'No groups yet'}</h3>
+									<p>{search.trim() ? `No groups match "${search}"` : 'Create a group to organize notes.'}</p>
 								</div>
 							) : (
 								<ul className="group-list">
-									{groups.map(g => (
+									{filteredGroups.map(g => (
 										<li
 											key={g.group_id}
 											className="group-item"
-											onClick={() => setSelected({ type: 'group', id: g.group_id })}
+											onClick={() => {
+												setSelected({ type: 'group', id: g.group_id })
+												setActiveTab('notes')
+											}}
 											style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
 										>
 											<div>
@@ -430,6 +448,7 @@ export default function App() {
 				<NoteModal
 					key={editing?.id ?? 'new'}
 					initial={editing}
+					groups={groups}
 					onCancel={() => { setIsOpen(false); setEditing(null) }}
 					onSave={handleSave}
 				/>
