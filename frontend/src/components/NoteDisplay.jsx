@@ -11,6 +11,10 @@ export default function NoteDisplay({ note, onDelete, onSelect, onPin, className
       .replaceAll(']', '')
       .trim()
 
+    const maxLength = 100
+    if (cleanBody.length > maxLength) {
+      return cleanBody.substring(0, maxLength) + '...'
+    }
     return cleanBody
   }
 

@@ -433,7 +433,9 @@ textarea {
 	cursor: pointer;
 	transition: box-shadow 150ms ease, border-color 150ms ease;
 	overflow: hidden;
-	height: 130px;
+	height: 150px;
+	min-height: 150px;
+	max-height: 150px;
 	box-sizing: border-box;
 }
 
@@ -471,6 +473,10 @@ textarea {
 	color: var(--text);
 	margin-bottom: 8px;
 	line-height: 1.4;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	width: 100%;
 }
 
 .note-text {
@@ -478,10 +484,14 @@ textarea {
 	line-height: 1.5;
 	color: var(--text);
 	margin: 0;
-	white-space: nowrap;
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	max-width: 75%;
+	white-space: normal;
+	word-break: break-word;
+	width: 100%;
 }
 
 /* Note Action Icons (Hidden by default, shown on hover) */
