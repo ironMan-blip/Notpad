@@ -589,6 +589,7 @@ async def _download_temp_audio(url: str) -> str:
 @router.post("/{note_id}/presigned")
 @limiter.limit("60/minute")
 async def generate_presigned_url(
+    request: Request,
     note_id: str,
     payload: PresignedUrlRequest,
     user_id: str = Depends(require_user_id)
