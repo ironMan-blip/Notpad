@@ -2,10 +2,10 @@ services:
   # 1. Database Service (PostgreSQL)
   db:
     image: postgres:15-alpine
-    container_name: notpad-db
+    container_name: notpad-db-prod
     restart: always
     env_file:
-      - ./backend/.env
+      - .env
     ports:
       - "5432:5432"
     volumes:
@@ -21,7 +21,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: notpad-backend
+    container_name: notpad-backend-prod
     restart: always
     depends_on:
       db:
@@ -29,32 +29,27 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - ./backend/.env
+      - .env
     environment:
       - POSTGRES_HOST=db
-      - API_BASE_URL=http://localhost:8000
+      - POSTGRES_PORT=5432
+      - DEBUG=False
+      - CORS_ORIGINS=["*"]
     volumes:
-      - ./backend:/app
-      - /app/.venv
       - uploads_data:/app/app/uploads
 
-  # 3. Frontend Service (Vite + React)
+  # 3. Frontend Service (React + Nginx)
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      target: development
-    container_name: notpad-frontend
+      target: production
+    container_name: notpad-frontend-prod
     restart: always
     depends_on:
       - backend
     ports:
-      - "5173:5173"
-    environment:
-      - VITE_BACKEND_URL=http://localhost:8000
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - "80:80"
 
 volumes:
   postgres_data:
